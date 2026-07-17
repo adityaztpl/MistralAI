@@ -11,19 +11,22 @@ market_research:
     Prioritize practical insights the content team can use immediately:
     themes, hooks, formats (carousel, reel, static), competitor patterns,
     and recommended hashtag clusters.
+
+    Be concrete and specific to this brand and topic. Do not invent fake
+    competitor handles or fabricated engagement metrics.
   expected_output: >
-    A markdown research brief with: audience insights, trending angles,
-    recommended formats, keyword ideas, and hashtag clusters for this week.
+    A markdown research brief with sections for: audience insights, content
+    angles, recommended formats, keyword ideas, and hashtag clusters for
+    this week.
   agent: market_researcher
-  output_file: outputs/market_research.md
 
 content_strategy:
   description: >
-    Using the market research, create a content calendar for {num_posts}
-    Instagram posts focused on "{topic_of_the_week}".
+    Using the market research, create a content calendar for exactly
+    {num_posts} Instagram posts focused on "{topic_of_the_week}".
 
     For each post include:
-    - day / sequence
+    - day / sequence (Post 1 .. Post {num_posts})
     - content pillar / theme
     - format (carousel, reel, or static)
     - post goal (awareness, engagement, conversion, education)
@@ -35,12 +38,12 @@ content_strategy:
   agent: content_strategist
   context:
     - market_research
-  output_file: outputs/content_strategy.md
 
 visual_content_creation:
   description: >
     Based on the content calendar, create a detailed visual concept for each
-    Instagram post. Each concept should be usable as an AI image / video prompt.
+    of the {num_posts} Instagram posts. Each concept should be usable as an
+    AI image or video prompt.
 
     Include for every post:
     - visual title
@@ -49,24 +52,24 @@ visual_content_creation:
     - color palette and mood
     - any on-image text
     - suggested aspect ratio (1:1, 4:5, or 9:16)
+    - a single copy-paste image-generation prompt
   expected_output: >
     A markdown document with one detailed visual concept per planned post,
     including prompt-ready descriptions and creative direction.
   agent: visual_creator
   context:
     - content_strategy
-  output_file: outputs/visual_content.md
 
 copywriting:
   description: >
-    Write the final Instagram caption package for each post in the calendar,
-    aligned with the visual concepts and research keywords/hashtags.
+    Write the final Instagram caption package for each of the {num_posts}
+    posts, aligned with the visual concepts and research keywords/hashtags.
 
     For each post provide:
     - hook (first line)
-    - full caption
+    - full caption (2-6 short paragraphs max)
     - call to action
-    - hashtag set (8-15 relevant tags)
+    - hashtag set (8-15 relevant tags, mix of niche and broader)
     - alt text suggestion for accessibility
   expected_output: >
     A markdown document with caption packages for every post, including hook,
@@ -75,17 +78,22 @@ copywriting:
   context:
     - content_strategy
     - visual_content_creation
-  output_file: outputs/captions.md
 
 final_content_pack:
   description: >
-    Compile a ready-to-publish Instagram content pack for the week.
+    Compile a ready-to-publish Instagram content pack for the week covering
+    all {num_posts} posts.
 
     Combine the research highlights, content calendar, visual concepts, and
     captions into one polished markdown report the brand can execute from.
 
-    Include a short rationale explaining why this plan fits the account and
-    weekly topic.
+    Structure the report as:
+    1. Executive summary
+    2. Strategy rationale
+    3. Post-by-post packages (theme, visual prompt, caption, hashtags, CTA)
+    4. Hashtag bank
+
+    Keep it actionable and free of placeholder text.
   expected_output: >
     A complete markdown content pack with executive summary, calendar,
     visuals, captions, hashtags, and rationale.
@@ -95,4 +103,3 @@ final_content_pack:
     - content_strategy
     - visual_content_creation
     - copywriting
-  output_file: outputs/final_content_pack.md

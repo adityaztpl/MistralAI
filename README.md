@@ -22,10 +22,11 @@ pip install -e ".[dev]"
 cp .env.example .env
 ```
 
-Add your Mistral API key to `.env`:
+Add your Mistral API key to `.env` (either variable name works):
 
 ```
 MISTRAL_API_KEY=your_mistral_api_key
+# or: MISTRAL_AI_KEY=your_mistral_api_key
 ```
 
 Get a key at [console.mistral.ai](https://console.mistral.ai/).
@@ -37,6 +38,14 @@ instagram-content \
   --description "A specialty coffee brand for remote workers who care about ritual and quality" \
   --topic "Morning brew routines for deep work" \
   --posts 3
+```
+
+Useful flags:
+
+```bash
+instagram-content -d "..." -t "..." -n 2 \
+  --model mistral/mistral-small-latest \
+  --output-dir outputs/demo
 ```
 
 Or:
@@ -62,7 +71,8 @@ Files are written to `outputs/`:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `MISTRAL_API_KEY` | (required) | Mistral API key |
+| `MISTRAL_API_KEY` | (required*) | Mistral API key |
+| `MISTRAL_AI_KEY` | (alias) | Accepted if `MISTRAL_API_KEY` is unset |
 | `MISTRAL_MODEL` | `mistral/mistral-large-latest` | LiteLLM model id |
 | `MISTRAL_TEMPERATURE` | `0.7` | Creativity |
 | `MISTRAL_MAX_TOKENS` | `4096` | Max response tokens |

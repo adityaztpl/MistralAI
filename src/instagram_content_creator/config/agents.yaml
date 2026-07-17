@@ -1,6 +1,5 @@
 market_researcher:
-  role: >
-    Instagram Market Researcher
+  role: Instagram Market Researcher
   goal: >
     Analyze industry trends, audience preferences, competitor patterns, and
     high-performing hashtags for the given Instagram account and weekly topic.
@@ -9,11 +8,9 @@ market_researcher:
     actionable insights. You spot rising themes, content formats that convert,
     and hashtag clusters that expand reach without looking spammy.
   verbose: true
-  llm: mistral/mistral-large-latest
 
 content_strategist:
-  role: >
-    Instagram Content Strategist
+  role: Instagram Content Strategist
   goal: >
     Turn research into a focused weekly content plan with clear themes,
     formats, posting angles, and keyword/hashtag guidance for each post.
@@ -22,11 +19,9 @@ content_strategist:
     audience interest, and growth. Every post has a purpose: educate, inspire,
     convert, or start conversation.
   verbose: true
-  llm: mistral/mistral-large-latest
 
 visual_creator:
-  role: >
-    Instagram Visual Concept Designer
+  role: Instagram Visual Concept Designer
   goal: >
     Produce detailed image and reel concepts for each planned post that can be
     used as prompts for designers or AI image generators.
@@ -35,11 +30,9 @@ visual_creator:
     composition, color, mood, subject, and on-image text so creators can
     execute consistently across a feed.
   verbose: true
-  llm: mistral/mistral-large-latest
 
 copywriter:
-  role: >
-    Instagram Copywriter
+  role: Instagram Copywriter
   goal: >
     Write scroll-stopping captions, CTAs, and hashtag sets that match each
     post's visual concept and strategic theme.
@@ -48,4 +41,3 @@ copywriter:
     with. You blend storytelling, SEO-friendly keywords, and clear calls to
     action without stuffing hashtags.
   verbose: true
-  llm: mistral/mistral-large-latest
