@@ -2,7 +2,11 @@
 Agentic RAG with LangGraph.
 
 Flow:
-    retrieve -> grade_documents -> (generate | rewrite_query -> retrieve | fallback)
+    retrieve
+      -> grade_documents
+      -> (generate | rewrite_query -> retrieve | fallback)
+      -> validate_citations
+      -> (end | rewrite_query -> retrieve | fallback)
 
 Install:
     pip install langgraph langchain-core langchain-openai
@@ -14,6 +18,7 @@ Run:
 
 from __future__ import annotations
 
+import re
 from typing import TypedDict
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -46,6 +51,8 @@ class RagState(TypedDict):
     attempts: int
     answer: str
     route: str
+    citations_valid: bool
+    validation_error: str
 
 
 class DocumentGrade(BaseModel):
@@ -136,11 +143,45 @@ Documents:
     return {"answer": answer.content or ""}
 
 
+def validate_citations(state: RagState) -> dict:
+    """Deterministically verify that cited IDs came from retrieved documents."""
+    retrieved_ids = {document["id"] for document in state["documents"]}
+    cited_ids = set(re.findall(r"\[([A-Za-z0-9_.:#-]+)\]", state["answer"]))
+
+    if not cited_ids:
+        return {
+            "citations_valid": False,
+            "validation_error": "answer did not include citations",
+        }
+
+    unknown = cited_ids - retrieved_ids
+    if unknown:
+        return {
+            "citations_valid": False,
+            "validation_error": f"unknown citation ids: {sorted(unknown)}",
+        }
+
+    return {
+        "citations_valid": True,
+        "validation_error": "",
+    }
+
+
+def route_after_validation(state: RagState) -> str:
+    if state["citations_valid"]:
+        return END
+    if state["attempts"] >= 2:
+        return "fallback"
+    return "rewrite_query"
+
+
 def fallback(state: RagState) -> dict:
+    suffix = f" Citation validation failed: {state['validation_error']}." if state.get("validation_error") else ""
     return {
         "answer": (
             "I do not have enough relevant context to answer confidently. "
             "Try rephrasing the question or indexing more documentation."
+            f"{suffix}"
         )
     }
 
@@ -151,6 +192,7 @@ def build_graph():
     builder.add_node("grade_documents", grade_documents)
     builder.add_node("rewrite_query", rewrite_query)
     builder.add_node("generate", generate)
+    builder.add_node("validate_citations", validate_citations)
     builder.add_node("fallback", fallback)
 
     builder.set_entry_point("retrieve")
@@ -165,7 +207,16 @@ def build_graph():
         },
     )
     builder.add_edge("rewrite_query", "retrieve")
-    builder.add_edge("generate", END)
+    builder.add_edge("generate", "validate_citations")
+    builder.add_conditional_edges(
+        "validate_citations",
+        route_after_validation,
+        {
+            END: END,
+            "rewrite_query": "rewrite_query",
+            "fallback": "fallback",
+        },
+    )
     builder.add_edge("fallback", END)
 
     return builder.compile()
@@ -181,6 +232,8 @@ def main() -> None:
             "attempts": 0,
             "answer": "",
             "route": "",
+            "citations_valid": False,
+            "validation_error": "",
         },
         {"recursion_limit": 8},
     )
