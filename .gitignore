@@ -28,3 +28,7 @@ outputs/*
 # CrewAI
 .crewai/
 storage/
+
+# Keep committed sample outputs; ignore ad-hoc runs
+!examples/
+!examples/**

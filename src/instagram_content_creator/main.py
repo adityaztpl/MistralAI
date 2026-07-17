@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import os
 import sys
 from pathlib import Path
 
@@ -70,6 +71,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def run(argv: list[str] | None = None) -> int:
     load_dotenv()
+    os.environ.setdefault("CREWAI_TRACING_ENABLED", "false")
+    try:
+        from crewai.events.listeners.tracing.utils import (
+            set_suppress_tracing_messages,
+        )
+
+        set_suppress_tracing_messages(True)
+    except Exception:  # noqa: BLE001 - optional CrewAI helper
+        pass
     args = parse_args(argv)
 
     if args.posts < 1 or args.posts > 14:

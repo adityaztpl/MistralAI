@@ -83,6 +83,10 @@ Agents and tasks live in:
 - `src/instagram_content_creator/config/agents.yaml`
 - `src/instagram_content_creator/config/tasks.yaml`
 
+## Sample output
+
+See [`examples/sample_run/`](examples/sample_run/) for a real generated content pack.
+
 ## Tests
 
 ```bash

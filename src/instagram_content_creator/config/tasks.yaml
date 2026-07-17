@@ -13,7 +13,9 @@ market_research:
     and recommended hashtag clusters.
 
     Be concrete and specific to this brand and topic. Do not invent fake
-    competitor handles or fabricated engagement metrics.
+    competitor handles, fabricated engagement metrics, or external image URLs.
+    If you cite a trend, frame it as an observation or hypothesis, not a
+    precise statistic you cannot verify.
   expected_output: >
     A markdown research brief with sections for: audience insights, content
     angles, recommended formats, keyword ideas, and hashtag clusters for
@@ -53,6 +55,8 @@ visual_content_creation:
     - any on-image text
     - suggested aspect ratio (1:1, 4:5, or 9:16)
     - a single copy-paste image-generation prompt
+
+    Do not invent or link to placeholder image URLs. Text descriptions only.
   expected_output: >
     A markdown document with one detailed visual concept per planned post,
     including prompt-ready descriptions and creative direction.
@@ -93,7 +97,8 @@ final_content_pack:
     3. Post-by-post packages (theme, visual prompt, caption, hashtags, CTA)
     4. Hashtag bank
 
-    Keep it actionable and free of placeholder text.
+    Keep it actionable and free of placeholder text. Do not invent image URLs
+    or markdown image embeds — paste the visual prompt text instead.
   expected_output: >
     A complete markdown content pack with executive summary, calendar,
     visuals, captions, hashtags, and rationale.
