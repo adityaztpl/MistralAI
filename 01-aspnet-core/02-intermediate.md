@@ -729,7 +729,227 @@ public sealed class ProductsV1Controller : ControllerBase
 - Document supported and deprecated versions.
 - Versioning strategy should match client needs and gateway conventions.
 
-## 14. Intermediate interview drill
+## 14. EF Core query shaping beyond the basics
+
+Intermediate candidates should reason about the SQL EF Core generates.
+
+Ask these questions for every query:
+
+- Does it return entities or DTO projections?
+- Is tracking needed?
+- Does paging happen before materialization?
+- Are filters aligned with indexes?
+- Are related rows loaded by `Include`, projection, split query, or separate batch query?
+- Does the query execute once or inside a loop?
+
+```csharp
+public async Task<PagedResponse<ProductListItemResponse>> SearchAsync(
+    ProductSearchRequest request,
+    CancellationToken cancellationToken)
+{
+    var page = Math.Max(request.Page, 1);
+    var pageSize = Math.Clamp(request.PageSize, 1, 100);
+
+    var query = _db.Products
+        .AsNoTracking()
+        .Where(product => product.IsActive);
+
+    if (!string.IsNullOrWhiteSpace(request.Search))
+    {
+        query = query.Where(product => EF.Functions.Like(product.Name, $"%{request.Search}%"));
+    }
+
+    var total = await query.CountAsync(cancellationToken);
+
+    var items = await query
+        .OrderBy(product => product.Name)
+        .ThenBy(product => product.Id)
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .Select(product => new ProductListItemResponse(
+            product.Id,
+            product.Name,
+            product.Price,
+            product.Category.Name))
+        .ToListAsync(cancellationToken);
+
+    return new PagedResponse<ProductListItemResponse>(items, page, pageSize, total);
+}
+```
+
+Use `Include` when you need tracked entity graphs for business operations. Use projection for read APIs.
+
+```csharp
+var order = await _db.Orders
+    .Include(order => order.Items)
+    .SingleAsync(order => order.Id == orderId, cancellationToken);
+
+var summary = await _db.Orders
+    .AsNoTracking()
+    .Where(order => order.Id == orderId)
+    .Select(order => new OrderSummaryResponse(
+        order.Id,
+        order.CustomerEmail,
+        order.Items.Sum(item => item.UnitPrice * item.Quantity)))
+    .SingleOrDefaultAsync(cancellationToken);
+```
+
+Pitfalls:
+
+- `ToListAsync` before `Where`, `Skip`, or `Take` moves work to memory.
+- Lazy loading can hide N+1 queries.
+- Multiple collection `Include`s can cause cartesian explosion; consider split queries.
+- Returning `IQueryable` from repositories leaks persistence details.
+
+Explain this prompt:
+
+> An endpoint is slow and uses `Include(order => order.Items).ThenInclude(item => item.Product)` only to return five fields. What would you inspect and change?
+
+## 15. Transactions and consistency
+
+A single relational `SaveChangesAsync` is transactional. Explicit transactions are for multiple saves that must commit together.
+
+```csharp
+order.MarkPaid(payment.Id, _timeProvider.GetUtcNow());
+_db.OutboxMessages.Add(OutboxMessage.FromDomainEvent(order.DomainEvents.Single()));
+await _db.SaveChangesAsync(cancellationToken);
+```
+
+Explicit transaction:
+
+```csharp
+await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+try
+{
+    customer.ReserveCredit(order.Total);
+    await _db.SaveChangesAsync(cancellationToken);
+
+    order.MarkAccepted();
+    await _db.SaveChangesAsync(cancellationToken);
+
+    await transaction.CommitAsync(cancellationToken);
+}
+catch
+{
+    await transaction.RollbackAsync(cancellationToken);
+    throw;
+}
+```
+
+Execution strategy with transaction:
+
+```csharp
+var strategy = _db.Database.CreateExecutionStrategy();
+await strategy.ExecuteAsync(async () =>
+{
+    await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+    await DoWorkAsync(cancellationToken);
+    await transaction.CommitAsync(cancellationToken);
+});
+```
+
+Rules:
+
+- Keep transactions short.
+- Do not hold transactions open during remote HTTP calls.
+- Retried writes need idempotency keys or uniqueness constraints.
+- Prefer outbox/inbox patterns over distributed transactions in microservices.
+
+## 16. Authentication flows in real APIs
+
+Access tokens are short-lived bearer credentials sent to APIs. Refresh tokens are longer-lived credentials sent only to auth endpoints.
+
+```text
+client -> POST /auth/login
+server -> validates password/MFA
+server -> returns access token + refresh token
+client -> calls APIs with access token
+client -> POST /auth/refresh when access token expires
+server -> rotates refresh token and returns a new pair
+```
+
+Refresh token rotation detects theft: if an already-used token appears, revoke the token family and require reauthentication.
+
+Resource authorization matters after endpoint policy checks:
+
+```csharp
+var order = await _db.Orders.FindAsync([orderId], cancellationToken);
+var result = await _authorization.AuthorizeAsync(User, order, "CanViewOrder");
+if (!result.Succeeded)
+{
+    return Forbid();
+}
+```
+
+Pitfalls:
+
+- Role checks alone often miss object-level authorization.
+- Long-lived JWTs are difficult to revoke.
+- Storing refresh tokens unhashed creates credential leakage risk.
+- Confusing `401` and `403` leads to poor client behavior.
+
+## 17. Background jobs and queues
+
+A `BackgroundService` is useful, but it is not a durable queue by itself.
+
+```csharp
+public interface IBackgroundTaskQueue
+{
+    ValueTask QueueAsync(Func<IServiceProvider, CancellationToken, ValueTask> workItem);
+    ValueTask<Func<IServiceProvider, CancellationToken, ValueTask>> DequeueAsync(CancellationToken cancellationToken);
+}
+
+public sealed class BackgroundTaskQueue : IBackgroundTaskQueue
+{
+    private readonly Channel<Func<IServiceProvider, CancellationToken, ValueTask>> _queue =
+        Channel.CreateBounded<Func<IServiceProvider, CancellationToken, ValueTask>>(new BoundedChannelOptions(100)
+        {
+            FullMode = BoundedChannelFullMode.Wait
+        });
+
+    public ValueTask QueueAsync(Func<IServiceProvider, CancellationToken, ValueTask> workItem) =>
+        _queue.Writer.WriteAsync(workItem);
+
+    public ValueTask<Func<IServiceProvider, CancellationToken, ValueTask>> DequeueAsync(CancellationToken cancellationToken) =>
+        _queue.Reader.ReadAsync(cancellationToken);
+}
+```
+
+Worker pattern:
+
+```csharp
+protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+{
+    while (!stoppingToken.IsCancellationRequested)
+    {
+        var workItem = await _queue.DequeueAsync(stoppingToken);
+        using var scope = _scopeFactory.CreateScope();
+        await workItem(scope.ServiceProvider, stoppingToken);
+    }
+}
+```
+
+Use durable queues when work must survive restarts, scale across instances, or be retried reliably.
+
+## 18. Intermediate hands-on lab: secure catalog API
+
+Build a catalog API with:
+
+- EF Core SQL provider and migrations.
+- Product/category relationship and seeded categories.
+- Read endpoints protected by `products.read` scope.
+- Write endpoints protected by `products.write` scope.
+- DTOs with validation annotations.
+- RowVersion concurrency token returning `409` on stale updates.
+- CORS restricted to a known frontend origin.
+- Central `ProblemDetails` exception handling.
+- Integration tests for validation, auth failure, read success, and concurrency conflict.
+
+Explain this prompt:
+
+> A user can update products in another tenant by changing the route id. Which layers should prevent this, and what tests prove the fix?
+
+## 19. Intermediate interview drill
 
 Practice answering these questions:
 
