@@ -554,3 +554,284 @@ Bad abstractions hide the UI flow. Good abstractions remove repeated complexity 
 7. When would you choose Zustand versus Redux Toolkit?
 8. What do error boundaries catch?
 9. What makes a React Testing Library test resilient?
+
+---
+
+## Deep advanced expansion: scheduling and user experience
+
+Concurrent rendering is easiest to explain through user experience. React can prioritize urgent updates, such as typing, over non-urgent updates, such as rendering a large filtered result list.
+
+Urgent:
+
+- Keystrokes.
+- Pointer interactions.
+- Focus changes.
+- Controlled input values.
+
+Non-urgent:
+
+- Large result lists.
+- Navigation to a route that may suspend.
+- Recomputing an expensive visualization.
+- Updating secondary panels.
+
+Important limits:
+
+- Concurrent rendering does not make CPU-heavy JavaScript cheaper.
+- Work must still be split or reduced when it is too expensive.
+- Rendering can be restarted before commit, so render purity matters more.
+- Commit work is still synchronous from the browser's perspective.
+
+Interview answer:
+
+> Concurrent rendering improves responsiveness by letting React prioritize and interrupt render work before commit. It is not a substitute for reducing work, virtualizing lists, or fixing slow data fetching.
+
+---
+
+## Deep advanced expansion: Suspense architecture
+
+Suspense boundary placement controls loading UX.
+
+One large boundary:
+
+```tsx
+<Suspense fallback={<FullPageSkeleton />}>
+  <ProductPage />
+</Suspense>
+```
+
+Nested boundaries:
+
+```tsx
+<Suspense fallback={<ProductShellSkeleton />}>
+  <ProductHeader />
+  <Suspense fallback={<ReviewsSkeleton />}>
+    <Reviews />
+  </Suspense>
+  <Suspense fallback={<RecommendationsSkeleton />}>
+    <Recommendations />
+  </Suspense>
+</Suspense>
+```
+
+Boundary placement trade-offs:
+
+- High boundary: simpler, but may hide too much useful UI.
+- Low boundary: progressive loading, but can flicker or create layout instability.
+- Route boundary: good for page-level loading.
+- Widget boundary: good for independent panels.
+
+Suspense is commonly used with:
+
+- `React.lazy` code splitting.
+- Framework data APIs.
+- Server Components/streaming.
+- Suspense-enabled query configurations.
+
+Suspense does not:
+
+- Catch errors.
+- Automatically fetch data by itself.
+- Replace mutation pending states.
+- Remove the need for meaningful skeleton design.
+
+Interview answer:
+
+> I place Suspense boundaries where the user can understand partial loading. I pair them with error boundaries because loading and failure are separate concerns.
+
+---
+
+## Deep advanced expansion: Server Components boundaries
+
+React Server Components introduce a different split than traditional "smart vs dumb" components.
+
+Server Components can:
+
+- Read from databases/internal services through server-only code.
+- Keep secrets off the client.
+- Avoid shipping component JavaScript to the browser.
+- Pass serializable props to Client Components.
+
+Server Components cannot:
+
+- Use `useState`.
+- Use `useEffect`.
+- Read browser APIs.
+- Attach event handlers.
+- Pass non-serializable props to Client Components.
+
+Boundary example:
+
+```tsx
+// ProductPage.server.tsx in an RSC-capable framework.
+export default async function ProductPage({ id }: { id: string }) {
+  const product = await getProduct(id);
+
+  return (
+    <ProductLayout product={product}>
+      <AddToCartClient productId={product.id} />
+    </ProductLayout>
+  );
+}
+```
+
+```tsx
+'use client';
+
+export function AddToCartClient({ productId }: { productId: string }) {
+  const addToCart = useCartStore((state) => state.addItem);
+
+  return (
+    <button type="button" onClick={() => addToCart(productId)}>
+      Add to cart
+    </button>
+  );
+}
+```
+
+Interview answer:
+
+> I push data access and non-interactive rendering toward Server Components, then create Client Component islands where state, effects, browser APIs, or event handlers are required.
+
+---
+
+## Deep advanced expansion: error strategy
+
+Error handling should be layered.
+
+Layers:
+
+- Form validation errors near fields.
+- Mutation errors near the action that failed.
+- Query/load errors in route or widget boundaries.
+- Render errors in error boundaries.
+- Global crash fallback for unexpected app-level failures.
+- Server authorization and validation regardless of client checks.
+
+Error boundary limitations:
+
+- They catch render errors below them.
+- They catch lifecycle errors in class components.
+- They do not catch errors in event handlers automatically.
+- They do not catch async promise rejections unless those are surfaced into render/router state.
+
+Pattern:
+
+```tsx
+function SaveButton() {
+  const [error, setError] = useState<Error | null>(null);
+
+  async function handleSave() {
+    try {
+      setError(null);
+      await save();
+    } catch (unknownError) {
+      setError(unknownError instanceof Error ? unknownError : new Error('Save failed'));
+    }
+  }
+
+  return (
+    <>
+      <button type="button" onClick={handleSave}>Save</button>
+      {error && <p role="alert">{error.message}</p>}
+    </>
+  );
+}
+```
+
+Interview answer:
+
+> I do not rely on one global error boundary for everything. Expected failures should be handled near the interaction or route. Error boundaries are for unexpected render failures and containment.
+
+---
+
+## Deep advanced expansion: scalable folder and dependency patterns
+
+React itself does not require a folder structure. Scalable apps usually organize around features, route boundaries, or domains rather than file types only.
+
+Feature-oriented example:
+
+```text
+src/
+  app/
+    AppProviders.tsx
+    router.tsx
+  features/
+    cart/
+      cartStore.ts
+      CartButton.tsx
+      CartDrawer.tsx
+      cartSelectors.ts
+    products/
+      api.ts
+      ProductsRoute.tsx
+      ProductCard.tsx
+      productTypes.ts
+  shared/
+    ui/
+    hooks/
+    utils/
+```
+
+Dependency guidance:
+
+- Shared UI should not import feature-specific stores.
+- Feature components can import shared UI and feature-local APIs.
+- Route/container components coordinate data and feature composition.
+- Pure helpers should stay framework-light and easy to test.
+- Avoid circular dependencies between features.
+
+Interview answer:
+
+> I structure React code so ownership is visible. Route/container layers compose data and state, feature folders own domain behavior, and shared modules stay generic.
+
+---
+
+## Deep advanced expansion: production readiness checklist
+
+Rendering:
+
+- Components are pure during render.
+- Keys are stable.
+- Expensive render paths are measured.
+- Large lists are virtualized when needed.
+
+State:
+
+- State is colocated where possible.
+- Server state uses a cache/data layer.
+- URL state is used for shareable page state.
+- Global client state has clear ownership.
+
+Data:
+
+- Loading, empty, success, and error states exist.
+- Requests have cancellation/stale handling when manual.
+- Mutations invalidate or update relevant cached data.
+- Optimistic updates have rollback behavior.
+
+Routing:
+
+- Protected routes are backed by server authorization.
+- Route-level error boundaries exist for major sections.
+- Lazy routes have meaningful fallback UI.
+
+Testing:
+
+- Critical flows use user-facing component/integration tests.
+- Reducers/selectors/pure helpers have focused unit tests.
+- Network behavior is mocked at the boundary.
+- Accessibility queries are preferred.
+
+Performance:
+
+- Bundle size is monitored.
+- Suspense/code splitting boundaries are intentional.
+- Memoization is targeted.
+- Context values do not update too broadly.
+
+React 19-era:
+
+- Form/action APIs are used where framework support is clear.
+- Server/Client Component boundaries are explicit.
+- Optimistic UI is reversible and communicated to users.
