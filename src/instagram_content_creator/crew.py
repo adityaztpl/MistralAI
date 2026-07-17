@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_MODEL = "mistral/mistral-large-latest"
+MISTRAL_BASE_URL = "https://api.mistral.ai/v1"
 OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "outputs"))
 
 
@@ -20,13 +21,24 @@ def resolve_mistral_api_key() -> str | None:
     return os.getenv("MISTRAL_API_KEY") or os.getenv("MISTRAL_AI_KEY")
 
 
+def normalize_mistral_model(model: str) -> tuple[str, str]:
+    """Return (crewai model id, bare mistral model name).
+
+    CrewAI's native ``mistral/`` LiteLLM route injects ``cache_breakpoint``
+    fields that the Mistral API rejects. We call Mistral through its
+    OpenAI-compatible endpoint instead.
+    """
+    bare = model.split("/", 1)[-1]
+    return f"openai/{bare}", bare
+
+
 def build_mistral_llm(
     *,
     model: str | None = None,
     temperature: float | None = None,
     max_tokens: int | None = None,
 ) -> LLM:
-    """Configure Mistral via CrewAI's LiteLLM integration."""
+    """Configure Mistral via its OpenAI-compatible API."""
     api_key = resolve_mistral_api_key()
     if not api_key:
         raise EnvironmentError(
@@ -34,9 +46,13 @@ def build_mistral_llm(
             "in your environment or .env file. See .env.example."
         )
 
+    requested = model or os.getenv("MISTRAL_MODEL", DEFAULT_MODEL)
+    crewai_model, _bare = normalize_mistral_model(requested)
+
     return LLM(
-        model=model or os.getenv("MISTRAL_MODEL", DEFAULT_MODEL),
+        model=crewai_model,
         api_key=api_key,
+        base_url=os.getenv("MISTRAL_BASE_URL", MISTRAL_BASE_URL),
         temperature=(
             temperature
             if temperature is not None

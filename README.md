@@ -1,6 +1,7 @@
 # Instagram Content Creator
 
-Multi-agent Instagram content generator built with **CrewAI** and **Mistral AI**.
+Multi-agent Instagram content generator built with **CrewAI** and **Mistral AI**
+(via Mistral's OpenAI-compatible API).
 
 Give it a brand description and weekly topic — a crew of four agents researches trends, plans a content calendar, designs visual concepts, and writes captions with hashtags.
 

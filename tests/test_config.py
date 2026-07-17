@@ -70,7 +70,20 @@ def test_build_mistral_llm_requires_api_key(monkeypatch):
         assert "Mistral API key" in str(exc)
 
 
-def test_build_mistral_llm_uses_env(monkeypatch):
+def test_normalize_mistral_model():
+    from instagram_content_creator.crew import normalize_mistral_model
+
+    assert normalize_mistral_model("mistral/mistral-large-latest") == (
+        "openai/mistral-large-latest",
+        "mistral-large-latest",
+    )
+    assert normalize_mistral_model("mistral-small-latest") == (
+        "openai/mistral-small-latest",
+        "mistral-small-latest",
+    )
+
+
+def test_build_mistral_llm_uses_openai_compatible_endpoint(monkeypatch):
     monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
     monkeypatch.setenv("MISTRAL_MODEL", "mistral/mistral-small-latest")
     monkeypatch.setenv("MISTRAL_TEMPERATURE", "0.2")
@@ -78,8 +91,10 @@ def test_build_mistral_llm_uses_env(monkeypatch):
     from instagram_content_creator.crew import build_mistral_llm
 
     llm = build_mistral_llm()
-    assert llm.model == "mistral/mistral-small-latest"
+    # CrewAI may normalize "openai/<model>" down to "<model>" when base_url is set.
+    assert llm.model in {"openai/mistral-small-latest", "mistral-small-latest"}
     assert llm.temperature == 0.2
+    assert "mistral.ai" in (llm.base_url or "")
 
 
 def test_cli_rejects_invalid_post_count(monkeypatch):
