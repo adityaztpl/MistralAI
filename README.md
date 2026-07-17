@@ -78,12 +78,22 @@ Start here → follow the roadmap → practice with examples → drill interview
 
 ### 5. Full-stack integration
 
+- [Section README](05-fullstack-integration/README.md) — recommended order and capstone checklist
 - [Architecture](05-fullstack-integration/architecture.md) — ASP.NET + Angular/React + Gen AI
+- [End-to-end tutorial](05-fullstack-integration/end-to-end-tutorial.md) — build a Notes + RAG chat app
+- [Auth deep dive](05-fullstack-integration/auth-flow-deep-dive.md) — OIDC/JWT, tenant filters, tool auth
+- [Streaming deep dive](05-fullstack-integration/streaming-sse-websocket.md) — SSE/fetch streams/WebSocket/SignalR
+- [Deployment checklist](05-fullstack-integration/deployment-checklist.md) — production readiness gates
 - [API contracts](05-fullstack-integration/sample-api-contracts.md) — Chat/RAG endpoints + client snippets
 - [Project ideas](05-fullstack-integration/project-ideas.md) — Beginner → advanced builds
 
 ### 6. Interview prep
 
+- [Section README](06-interview-prep/README.md)
+- [Answer frameworks](06-interview-prep/answer-frameworks.md)
+- [Behavioral and storytelling](06-interview-prep/behavioral-and-storytelling.md)
+- [Coding drills](06-interview-prep/coding-drills.md)
+- [Mock interview day](06-interview-prep/mock-interview-day.md)
 - [ASP.NET questions](06-interview-prep/questions-aspnet.md)
 - [Angular / React questions](06-interview-prep/questions-angular-react.md)
 - [Gen AI questions](06-interview-prep/questions-genai.md)

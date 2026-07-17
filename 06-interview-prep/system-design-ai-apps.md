@@ -320,3 +320,262 @@ I would split this into:
 5. Design an AI ops copilot that can read logs and suggest actions.
 6. Design RAG evaluation infrastructure.
 
+---
+
+## 13. 45-minute system design scorecard
+
+Use this to self-grade after practice.
+
+| Category | Strong signal | Red flag |
+|---|---|---|
+| Requirements | Clarifies users, data, latency, citations, privacy | Starts drawing immediately |
+| Architecture | Clear client/API/data/AI boundaries | "LLM does everything" |
+| Auth/security | Tenant/ACL filters before prompt assembly | Model sees unauthorized data |
+| Retrieval | Chunking, metadata, hybrid/rerank trade-offs | Vector DB treated as magic |
+| Streaming UX | Transport, cancellation, partial errors | Ignores long latency |
+| Evaluation | Offline and online metrics | "Users will tell us" only |
+| Observability | Tokens, cost, latency, chunk IDs, traces | Only generic logs |
+| Cost | Quotas, model routing, token budgets | No cost controls |
+| Reliability | Timeouts, retries, fallback, queues | Synchronous ingestion |
+| Communication | Summarizes trade-offs and risks | Too much implementation detail too early |
+
+Score each category 1-5. Any red flag in auth/security should be treated as a major issue.
+
+---
+
+## 14. Deep dive: multi-tenant document Q&A
+
+### Functional requirements
+
+- Upload documents.
+- Ask questions with citations.
+- Stream answers.
+- Manage collections.
+- Delete documents.
+- Give feedback.
+- Admin views usage and quality.
+
+### Non-functional requirements
+
+- Tenant isolation.
+- P95 chat latency target.
+- Ingestion retry.
+- Cost limits.
+- Audit logs.
+- Data deletion.
+- Provider outage handling.
+
+### APIs
+
+```text
+POST /api/documents
+GET  /api/documents/{id}/ingestion-status
+POST /api/rag/query
+POST /api/chat/stream
+POST /api/feedback
+GET  /api/admin/usage
+```
+
+### Data model
+
+```text
+Tenant
+User
+Document
+DocumentChunk
+IngestionJob
+Conversation
+Message
+Citation
+Feedback
+UsageRecord
+```
+
+### Retrieval deep dive
+
+```text
+question
+  -> optional conversation-aware rewrite
+  -> query embedding
+  -> vector search with tenant/ACL filter
+  -> keyword search for exact terms
+  -> reciprocal rank fusion
+  -> rerank top candidates
+  -> context packing/token budgeting
+  -> grounded prompt
+```
+
+### Security deep dive
+
+- Tenant ID comes from validated token.
+- Document ACLs are stored as metadata.
+- Search filters enforce tenant/ACL before prompt assembly.
+- Tool calls use server-side authorization.
+- Audit logs include retrieved chunk IDs.
+- Prompt injection examples are included in evals.
+
+### Scaling deep dive
+
+| Bottleneck | Scaling option |
+|---|---|
+| Upload parsing | Queue + worker pool |
+| Embeddings | Batch requests and retry |
+| Vector search | ANN index, partitioning, managed search |
+| Reranking | Apply only to top N or high-value tenants |
+| Model latency | Streaming, smaller model routing |
+| Cost | Token budgets, quotas, caching |
+
+---
+
+## 15. Deep dive: RAG evaluation platform
+
+### Goal
+
+Design infrastructure that tells whether RAG changes improved or regressed quality.
+
+### Core flow
+
+```mermaid
+flowchart LR
+  Dataset[Golden dataset] --> Runner[Eval runner]
+  Runner --> Retriever[Retriever under test]
+  Runner --> Generator[Generator under test]
+  Retriever --> Metrics[Retrieval metrics]
+  Generator --> Judge[Faithfulness/citation checks]
+  Metrics --> Report[Eval report]
+  Judge --> Report
+  Report --> Gate[Release gate]
+```
+
+### Dataset schema
+
+```json
+{
+  "id": "q-001",
+  "question": "How often should API keys rotate?",
+  "expectedChunkIds": ["security#chunk-4"],
+  "expectedAnswerFacts": ["90 days"],
+  "tags": ["security", "exact-fact"]
+}
+```
+
+### Metrics
+
+- Recall@k.
+- MRR/NDCG.
+- Context precision.
+- Faithfulness.
+- Citation accuracy.
+- Answer relevance.
+- Latency.
+- Cost.
+
+### Release gate
+
+```text
+Block rollout if:
+- Recall@5 drops by more than 3%.
+- Citation accuracy drops by more than 2%.
+- P95 latency increases by more than 20%.
+- Cost/request increases by more than 25% without approval.
+- Any cross-tenant test fails.
+```
+
+---
+
+## 16. Deep dive: AI support agent with ticket creation
+
+### Key design choice
+
+Use deterministic workflow plus limited tool calling before using a broad autonomous agent.
+
+```mermaid
+flowchart TD
+  A[User asks support question] --> B[Classify intent]
+  B --> C[Retrieve docs]
+  C --> D[Generate grounded answer]
+  D --> E{Enough evidence?}
+  E -->|yes| F[Stream answer with citations]
+  E -->|no| G[Draft ticket]
+  G --> H[User confirms]
+  H --> I[Create ticket tool]
+```
+
+### Tool contract
+
+```json
+{
+  "tool": "CreateSupportTicket",
+  "arguments": {
+    "subject": "Cannot rotate API key",
+    "description": "User tried...",
+    "priority": "normal"
+  }
+}
+```
+
+### Tool safety
+
+- Tool name allowlist.
+- JSON schema validation.
+- User authorization.
+- Idempotency key.
+- Human confirmation.
+- Audit log.
+
+### Interview trade-off
+
+> I would avoid a fully autonomous agent for ticket creation at first. A deterministic flow with a model-generated draft and user confirmation gives most of the value with much lower risk.
+
+---
+
+## 17. Deep dive: conversational analytics
+
+### Architecture
+
+```mermaid
+flowchart TD
+  Q[User question] --> Sem[Semantic metric layer]
+  Sem --> Prompt[SQL prompt with approved schema]
+  Prompt --> LLM[SQL generator]
+  LLM --> Parser[SQL parser]
+  Parser --> Policy[Policy validator]
+  Policy -->|valid| DryRun[Dry run]
+  DryRun --> DB[(Read replica)]
+  DB --> Explain[Explain results]
+  Explain --> UI[Table/chart]
+```
+
+### Safety rules
+
+- Read-only database user.
+- Whitelisted views only.
+- No raw PII fields.
+- Query timeout.
+- Row limit.
+- SQL parser validation.
+- Dry run before execution.
+- Show generated SQL/explanation to advanced users.
+
+### Failure modes
+
+| Failure | Mitigation |
+|---|---|
+| Invalid SQL | Parser + repair/reject |
+| Expensive query | Timeout, limit, dry run |
+| Wrong metric | Semantic layer and examples |
+| PII exposure | Whitelisted views and policy |
+| Hallucinated column | Schema-grounded prompt and validator |
+
+---
+
+## 18. System design closing script
+
+Use the last 60-90 seconds to summarize:
+
+```text
+To summarize, I separated the system into a client UX, ASP.NET Core API trust boundary, ingestion pipeline, retrieval layer, model orchestration, and observability/evaluation. The most important risks are tenant leakage, retrieval quality, hallucinated citations, provider latency/outage, and cost. I would start with a deterministic RAG flow, add streaming and citations, measure quality with a golden dataset, and roll out behind feature flags with monitoring.
+```
+
+This closing shows that you can connect architecture choices back to product and operational risk.
+
