@@ -1,0 +1,98 @@
+market_research:
+  description: >
+    Investigate Instagram trends, content formats, audience angles, and
+    hashtag opportunities for this account.
+
+    Current date: {current_date}
+    Account / brand description: {instagram_description}
+    Focus topic for this week: {topic_of_the_week}
+    Number of posts to plan: {num_posts}
+
+    Prioritize practical insights the content team can use immediately:
+    themes, hooks, formats (carousel, reel, static), competitor patterns,
+    and recommended hashtag clusters.
+  expected_output: >
+    A markdown research brief with: audience insights, trending angles,
+    recommended formats, keyword ideas, and hashtag clusters for this week.
+  agent: market_researcher
+  output_file: outputs/market_research.md
+
+content_strategy:
+  description: >
+    Using the market research, create a content calendar for {num_posts}
+    Instagram posts focused on "{topic_of_the_week}".
+
+    For each post include:
+    - day / sequence
+    - content pillar / theme
+    - format (carousel, reel, or static)
+    - post goal (awareness, engagement, conversion, education)
+    - core message
+    - recommended keywords and hashtags
+  expected_output: >
+    A markdown content calendar covering each planned post with theme,
+    format, goal, message, keywords, and hashtags.
+  agent: content_strategist
+  context:
+    - market_research
+  output_file: outputs/content_strategy.md
+
+visual_content_creation:
+  description: >
+    Based on the content calendar, create a detailed visual concept for each
+    Instagram post. Each concept should be usable as an AI image / video prompt.
+
+    Include for every post:
+    - visual title
+    - detailed scene description
+    - composition and framing
+    - color palette and mood
+    - any on-image text
+    - suggested aspect ratio (1:1, 4:5, or 9:16)
+  expected_output: >
+    A markdown document with one detailed visual concept per planned post,
+    including prompt-ready descriptions and creative direction.
+  agent: visual_creator
+  context:
+    - content_strategy
+  output_file: outputs/visual_content.md
+
+copywriting:
+  description: >
+    Write the final Instagram caption package for each post in the calendar,
+    aligned with the visual concepts and research keywords/hashtags.
+
+    For each post provide:
+    - hook (first line)
+    - full caption
+    - call to action
+    - hashtag set (8-15 relevant tags)
+    - alt text suggestion for accessibility
+  expected_output: >
+    A markdown document with caption packages for every post, including hook,
+    caption body, CTA, hashtags, and alt text.
+  agent: copywriter
+  context:
+    - content_strategy
+    - visual_content_creation
+  output_file: outputs/captions.md
+
+final_content_pack:
+  description: >
+    Compile a ready-to-publish Instagram content pack for the week.
+
+    Combine the research highlights, content calendar, visual concepts, and
+    captions into one polished markdown report the brand can execute from.
+
+    Include a short rationale explaining why this plan fits the account and
+    weekly topic.
+  expected_output: >
+    A complete markdown content pack with executive summary, calendar,
+    visuals, captions, hashtags, and rationale.
+  agent: content_strategist
+  context:
+    - market_research
+    - content_strategy
+    - visual_content_creation
+    - copywriting
+  output_file: outputs/final_content_pack.md
