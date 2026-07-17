@@ -534,3 +534,146 @@ Practice concise answers:
 6. When is a service store sufficient?
 7. How do signals and observables differ?
 8. What triggers an OnPush component to update?
+
+---
+
+
+## 10. Feature architecture at intermediate level
+
+A maintainable feature usually separates routes, pages, API services, stores, and presentational components.
+
+```text
+features/products/
+  products.routes.ts
+  product-list.page.ts
+  product-api.service.ts
+  product-store.service.ts
+  product-card.component.ts
+```
+
+Route-level providers are useful when feature state should reset with navigation.
+
+```ts
+export const productRoutes: Routes = [
+  {
+    path: '',
+    providers: [ProductStore],
+    loadComponent: () => import('./product-list.page').then((m) => m.ProductListPage),
+  },
+];
+```
+
+Interview checklist:
+
+- Can you explain root versus route-level provider lifetime?
+- Can you keep API mapping out of presentational components?
+- Can you split a feature into page, store, API, and UI components?
+
+## 11. HTTP error handling and retries
+
+Interceptors handle cross-cutting transport concerns; feature services should still map domain errors.
+
+```ts
+getProduct(id: string) {
+  return this.http.get<Product>(`/api/products/${id}`).pipe(
+    catchError((error) => throwError(() => mapApiError(error))),
+  );
+}
+```
+
+Retry checklist:
+
+- Retry idempotent reads when failure is likely transient.
+- Avoid blind retry for writes unless the backend supports idempotency.
+- Add backoff and user-facing failure state.
+- Do not swallow errors globally in an interceptor.
+
+## 12. Guards, resolvers, and route UX
+
+Use guards for navigation decisions and resolvers for critical data that must exist before activation.
+
+```ts
+export const productResolver: ResolveFn<Product> = (route) => {
+  const api = inject(ProductApi);
+  return api.getProduct(route.paramMap.get('id')!);
+};
+```
+
+Interview checklist:
+
+- Return `UrlTree` instead of imperatively navigating from a guard.
+- Use `canMatch` to prevent matching a lazy route.
+- Avoid blocking navigation for large optional data.
+- Remember server authorization is required.
+
+## 13. Intermediate RxJS patterns
+
+Stream shape matters more than memorizing operators.
+
+```ts
+readonly state$ = this.reloadClicks.pipe(
+  startWith(undefined),
+  switchMap(() =>
+    this.api.list().pipe(
+      map((data) => ({ loading: false, data, error: null })),
+      startWith({ loading: true, data: [], error: null }),
+      catchError(() => of({ loading: false, data: [], error: 'Load failed.' })),
+    ),
+  ),
+);
+```
+
+Checklist:
+
+- Catch errors inside `switchMap` for long-lived sources.
+- Use `switchMap` for latest-wins workflows.
+- Use `concatMap` when ordering matters.
+- Use `exhaustMap` for duplicate submit protection.
+
+## 14. Signal service stores
+
+Signals make feature stores concise when the UI needs current state.
+
+```ts
+@Injectable()
+export class ProductFiltersStore {
+  private readonly query = signal('');
+  private readonly category = signal<string | null>(null);
+  readonly filters = computed(() => ({ query: this.query().trim(), category: this.category() }));
+  setQuery(query: string): void { this.query.set(query); }
+  setCategory(category: string | null): void { this.category.set(category); }
+}
+```
+
+Store checklist:
+
+- Keep writable signals private.
+- Expose readonly signals or computed values.
+- Use methods for state transitions.
+- Use RxJS at async boundaries.
+
+## 15. Change detection debugging
+
+When UI is stale, ask:
+
+1. Did state actually change?
+2. Did the template read that state?
+3. Was an object mutated in place?
+4. Is the component OnPush?
+5. Did an observable emit through `AsyncPipe` or `toSignal`?
+6. In zoneless mode, was Angular notified?
+
+Common fix:
+
+```ts
+this.items.update((items) => [...items, newItem]);
+```
+
+## 16. Intermediate anti-patterns
+
+- Components that own unrelated API, auth, routing, validation, and rendering concerns.
+- Public writable subjects or signals in services.
+- Guards with complex side effects.
+- `shareReplay` caches without refresh strategy.
+- `track $index` for mutable server data.
+- Manual subscriptions without cleanup.
