@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rag-postgres
+    environment:
+      POSTGRES_DB: rag
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag
+    ports:
+      - "5432:5432"
+    volumes:
+      - rag-postgres-data:/var/lib/postgresql/data
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - rag-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    container_name: rag-api
+    working_dir: /src/api
+    command: >
+      bash -lc "dotnet restore &&
+      dotnet watch run --urls http://0.0.0.0:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://0.0.0.0:8080
+      POSTGRES_CONNECTION: Host=postgres;Port=5432;Database=rag;Username=rag;Password=rag
+      REDIS_CONNECTION: redis:6379
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.mistral.ai/v1}
+      CHAT_MODEL: ${CHAT_MODEL:-mistral-small-latest}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-mistral-embed}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:?Set MISTRAL_API_KEY before running docker compose}
+      AUTH_DEMO_TOKEN: ${AUTH_DEMO_TOKEN:-dev-token}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./api:/src/api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    image: node:20-alpine
+    container_name: rag-web
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080
+      VITE_DEMO_TOKEN: ${AUTH_DEMO_TOKEN:-dev-token}
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web:/app
+    depends_on:
+      - api
+
+volumes:
+  rag-postgres-data:
+  rag-redis-data:
+

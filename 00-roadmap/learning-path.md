@@ -1058,3 +1058,318 @@ Deliver:
 - Add per-tenant cost reporting.
 - Add red-team prompt injection tests.
 
+---
+
+## Phase 8: Advanced Production Modules and Instagram Capstone
+
+This phase extends the original 24-week path with sections `07` through `16`. Use it after the core ASP.NET, frontend, GenAI, integration, and interview-prep material, or interleave individual weeks when you need focused practice.
+
+### Week 25: Runnable project blueprints
+
+**Read**
+
+- `07-runnable-projects/README.md`
+
+**Goals**
+
+- Study runnable, interview-ready project blueprints that combine backend, frontend, database, auth, observability, and AI integration.
+- Practice explaining local topology, setup, demo flow, tests, and trade-offs.
+- Use the blueprints as portfolio starting points or timed implementation drills.
+
+**Build**
+
+- Run or walk through the ASP.NET + React RAG project.
+- Run or walk through the ASP.NET + Angular notes project.
+- Add one meaningful test or hardening improvement to a blueprint.
+- Write a demo script that starts from setup and ends with interview trade-offs.
+
+**Interview focus**
+
+- Explaining a runnable app quickly.
+- Local Docker topology.
+- Auth, tenant ownership, validation, and observability in a small project.
+- Turning a scaffold into a production-ready implementation.
+
+---
+
+### Week 26: Mistral APIs and production usage
+
+**Read**
+
+- `08-mistral/README.md`
+
+**Goals**
+
+- Build fluency with Mistral chat completions, streaming, embeddings, function calling, agents, cost, and limits.
+- Practice Python and .NET client examples.
+- Explain when to use Mistral directly, through OpenAI-compatible endpoints, or behind an orchestration framework.
+
+**Build**
+
+- Run a chat completion example.
+- Run a streaming example.
+- Run or inspect an embeddings/RAG example.
+- Explain a tool-calling loop with deterministic server-side execution.
+
+**Interview focus**
+
+- Mistral model choice.
+- OpenAI-compatible API usage.
+- Streaming and cancellation.
+- Embeddings and RAG.
+- Function calling, cost controls, and rate limits.
+
+---
+
+### Week 27: Take-home project kits
+
+**Read**
+
+- `09-take-home-kits/README.md`
+- `09-take-home-kits/submission-checklist.md`
+
+**Goals**
+
+- Practice timed project delivery.
+- Learn how to scope an impressive but finishable submission.
+- Build README, tests, screenshots, and trade-off notes.
+
+**Build**
+
+- Complete either the 2-hour Notes API or 8-hour RAG Chat kit.
+- Write a submission README with setup, architecture, trade-offs, and known limitations.
+- Add at least one meaningful test per risky behavior.
+
+**Interview focus**
+
+- Timeboxing.
+- Communicating trade-offs.
+- Showing test judgment.
+- Explaining what you would do next.
+
+---
+
+### Week 28: Debugging playbooks
+
+**Read**
+
+- `10-debugging-playbooks/README.md`
+- Pick three playbooks most relevant to your target role.
+
+**Goals**
+
+- Practice systematic troubleshooting.
+- Move from symptom to hypothesis to evidence to fix.
+- Build vocabulary for production incidents.
+
+**Build**
+
+- Reproduce one auth, one frontend, and one GenAI failure locally or as a written simulation.
+- Write a short incident note: impact, root cause, fix, prevention.
+
+**Interview focus**
+
+- JWT 401 loops.
+- CORS preflight failures.
+- RAG wrong-doc retrieval.
+- SSE stalls.
+- EF Core N+1 queries.
+
+---
+
+### Week 29: Data platform depth
+
+**Read**
+
+- `11-data-platform/README.md`
+
+**Goals**
+
+- Strengthen SQL, EF migrations, Redis caching, queues, Docker Compose, CI, and Azure deployment foundations.
+- Understand the persistence layer behind full-stack AI applications.
+
+**Build**
+
+- Add an EF migration with a safe rollback note.
+- Add a queued background job.
+- Add Redis cache-aside for a read-heavy endpoint.
+- Run the stack with Docker Compose.
+
+**Interview focus**
+
+- Index design.
+- EF migration pitfalls.
+- Cache invalidation.
+- Queue retries and idempotency.
+- Deployment shape for .NET services.
+
+---
+
+### Week 30: Decision sheets
+
+**Read**
+
+- `12-decision-sheets/README.md`
+
+**Goals**
+
+- Practice choosing technologies based on requirements, not slogans.
+- Build concise comparison answers for architecture interviews.
+
+**Practice**
+
+- Explain Angular vs React for a team scenario.
+- Explain Controllers vs Minimal APIs for an enterprise API.
+- Explain LangChain vs LangGraph vs Semantic Kernel.
+- Explain RAG vs fine-tuning vs tools.
+- Explain SQL vs vector vs hybrid search.
+
+**Interview focus**
+
+- Requirements first.
+- Forces and constraints.
+- Default recommendation.
+- Conditions that would change your decision.
+- Validation metric or prototype.
+
+---
+
+### Week 31: Flashcards and active recall
+
+**Read**
+
+- `13-flashcards/README.md`
+
+**Goals**
+
+- Convert passive notes into answers you can deliver under pressure.
+- Practice 60-second explanations across ASP.NET, frontend, GenAI, Mistral, and system design.
+
+**Practice**
+
+- 20 mixed flashcards per day.
+- 5 verbal drills recorded and reviewed.
+- Rewrite weak answers using: definition -> why it matters -> example -> trade-off.
+
+**Interview focus**
+
+- Concision.
+- Correctness.
+- Example-driven explanations.
+- Naming trade-offs and failure modes.
+
+---
+
+### Week 32: Whiteboard pack
+
+**Read**
+
+- `14-whiteboard-pack/README.md`
+
+**Goals**
+
+- Practice 35-45 minute full-stack + GenAI system-design conversations.
+- Use repeatable structure for requirements, APIs, data, architecture, sequence, risks, metrics, and rollout.
+
+**Practice**
+
+- Whiteboard multi-tenant RAG.
+- Whiteboard streaming chat.
+- Whiteboard an agent with human-in-the-loop.
+- Whiteboard rate limits and cost control.
+
+**Interview focus**
+
+- Clarifying scope.
+- Drawing clean boundaries.
+- Deep-diving tenant isolation, reliability, and AI evaluation.
+- Ending with metrics and trade-offs.
+
+---
+
+### Week 33: Security lab
+
+**Read**
+
+- `15-security-lab/README.md`
+- `15-security-lab/01-broken-jwt.md`
+- `15-security-lab/02-idor-on-documents.md`
+- `15-security-lab/03-prompt-injection.md`
+- `15-security-lab/04-insecure-tool-calling.md`
+- `15-security-lab/05-cors-and-xss-spa.md`
+- `15-security-lab/06-secrets-and-config.md`
+- `15-security-lab/07-lab-checklist.md`
+
+**Goals**
+
+- Learn from deliberately vulnerable sandbox samples.
+- Explain broken behavior safely at a high level.
+- Harden JWT validation, document authorization, prompt boundaries, tool gateways, browser rendering, and secret handling.
+
+**Build**
+
+- Write tests for tampered/expired/wrong-audience JWTs.
+- Write cross-tenant IDOR tests.
+- Add prompt-injection eval cases.
+- Design a tool gateway policy.
+- Add a secret-rotation runbook.
+
+**Interview focus**
+
+- Authentication vs authorization.
+- IDOR prevention.
+- Prompt injection defense layers.
+- Tool authorization.
+- CORS vs XSS.
+- Secret management and rotation.
+
+---
+
+### Week 34: Instagram content creator capstone
+
+**Read**
+
+- `16-capstone-instagram/README.md`
+- `16-capstone-instagram/01-wrap-with-aspnet.md`
+- `16-capstone-instagram/02-spa-dashboard.md`
+- `16-capstone-instagram/03-eval-metrics.md`
+- `16-capstone-instagram/04-auth-tenancy-cost.md`
+- `16-capstone-instagram/05-deployment.md`
+- `16-capstone-instagram/architecture.md`
+
+**Goals**
+
+- Turn `src/instagram_content_creator` into a full-stack capstone architecture.
+- Wrap CrewAI/Mistral generation with an ASP.NET API facade.
+- Add a dashboard, run history, eval scoring, feedback, tenancy, cost controls, deployment plan, and interview diagrams.
+
+**Build**
+
+- Sketch or implement `POST /api/content-runs`.
+- Add a background worker around the Python crew.
+- Build a React or Angular dashboard for run creation/history.
+- Score generated artifacts with the rubric.
+- Add auth, budget, and tenant checks.
+- Prepare a portfolio README and demo script.
+
+**Interview focus**
+
+- Why async job architecture fits AI generation.
+- How API, worker, Python crew, Mistral, DB, and SPA interact.
+- How evals and human feedback improve output quality.
+- How tenant isolation and cost controls work.
+- How to deploy and operate the capstone.
+
+---
+
+### Final advanced readiness checklist
+
+- [ ] Can explain every section `07` through `16` from the root README.
+- [ ] Can show at least one tested backend endpoint and one tested frontend flow.
+- [ ] Can debug an auth, CORS, RAG, or streaming failure systematically.
+- [ ] Can compare architecture options using the decision-sheet template.
+- [ ] Can answer flashcards out loud without notes.
+- [ ] Can whiteboard a multi-tenant AI system in 45 minutes.
+- [ ] Can explain each security lab's broken pattern and hardened fix.
+- [ ] Can present the Instagram capstone as a product, not only a script.
+

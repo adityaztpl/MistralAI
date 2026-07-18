@@ -19,6 +19,7 @@ Interview and hands-on prep from **basic → advanced** covering:
 | Frontend | Angular (standalone + signals) |
 | Frontend | React (hooks + concurrent features) |
 | Gen AI | RAG, LangChain, LangGraph, Semantic Kernel |
+| Practice | Take-home kits, debugging playbooks, data platform drills |
 
 Start here → follow the roadmap → practice with examples → drill interview questions.
 
@@ -39,6 +40,16 @@ Start here → follow the roadmap → practice with examples → drill interview
 04-genai/                    RAG · LangChain · LangGraph · Semantic Kernel
 05-fullstack-integration/    Architecture · API contracts · projects
 06-interview-prep/           Q&A · AI system design
+07-runnable-projects/        Runnable ASP.NET + React/Angular + AI project blueprints
+08-mistral/                  Mistral APIs · embeddings · tools · cost · examples
+09-take-home-kits/           Timed projects · rubrics · submission checklist
+10-debugging-playbooks/      Production-style troubleshooting drills
+11-data-platform/            SQL · EF migrations · Redis · queues · Azure
+12-decision-sheets/          Architecture decision sheets and trade-offs
+13-flashcards/               Active recall · 60-second interview drills
+14-whiteboard-pack/          System design canvases
+15-security-lab/             Sandbox security lab: broken → exploit reasoning → harden
+16-capstone-instagram/       Full-stack Instagram creator capstone over CrewAI/Mistral
 projects/                    Standalone app docs (Instagram creator)
 src/                         Instagram content creator package
 ```
@@ -107,6 +118,45 @@ src/                         Instagram content creator package
 - [Angular / React questions](06-interview-prep/questions-angular-react.md)
 - [Gen AI questions](06-interview-prep/questions-genai.md)
 - [AI app system design](06-interview-prep/system-design-ai-apps.md)
+
+### 7-16. Advanced production, practice, security, and capstone modules
+
+| Section | README | Interview outcome |
+|---------|--------|-------------------|
+| 7. Runnable projects | [Section README](07-runnable-projects/README.md) | Demo ASP.NET + React/Angular + AI projects with local topology and interview notes |
+| 8. Mistral prep addon | [Section README](08-mistral/README.md) | Explain Mistral APIs, streaming, embeddings, function calling, cost, and examples |
+| 9. Take-home kits | [Section README](09-take-home-kits/README.md) | Practice timed full-stack and GenAI project submissions |
+| 10. Debugging playbooks | [Section README](10-debugging-playbooks/README.md) | Troubleshoot production-style API, SPA, RAG, auth, and streaming failures |
+| 11. Data platform | [Section README](11-data-platform/README.md) | Explain SQL, EF migrations, Redis, queues, Docker, CI, and Azure deployment |
+| 12. Decision sheets | [Section README](12-decision-sheets/README.md) | Compare architecture options with scenario-driven trade-offs |
+| 13. Flashcards | [Section README](13-flashcards/README.md) | Build active recall for concise technical answers |
+| 14. Whiteboard pack | [Section README](14-whiteboard-pack/README.md) | Practice full-stack + GenAI system-design canvases |
+| 15. Security lab | [Section README](15-security-lab/README.md) | Review vulnerable samples, explain risk safely, and harden implementations |
+| 16. Instagram capstone | [Section README](16-capstone-instagram/README.md) | Wrap the CrewAI/Mistral app in a full-stack SaaS-style product |
+
+### 9. Take-home kits
+
+- [2h Notes API](09-take-home-kits/02h-notes-api.md)
+- [8h RAG Chat](09-take-home-kits/08h-rag-chat.md)
+- [Weekend Support Agent](09-take-home-kits/weekend-support-agent.md)
+- [Submission checklist](09-take-home-kits/submission-checklist.md)
+
+### 10. Debugging playbooks
+
+- [RAG wrong docs](10-debugging-playbooks/rag-wrong-docs.md)
+- [JWT 401 loop](10-debugging-playbooks/jwt-401-loop.md)
+- [Angular change detection thrash](10-debugging-playbooks/change-detection-thrash.md)
+- [SSE stalls](10-debugging-playbooks/sse-stalls.md)
+- [More playbooks](10-debugging-playbooks/README.md)
+
+### 11. Data platform
+
+- [SQL design and indexing](11-data-platform/01-sql-design-and-indexing.md)
+- [EF Core migrations pitfalls](11-data-platform/02-ef-core-migrations-pitfalls.md)
+- [Redis caching patterns](11-data-platform/03-redis-caching-patterns.md)
+- [Queues and background jobs](11-data-platform/04-queues-and-background-jobs.md)
+- [Docker Compose and CI](11-data-platform/05-docker-compose-and-ci.md)
+- [Azure deploy .NET](11-data-platform/06-azure-deploy-dotnet.md)
 
 ## Suggested study order
 
