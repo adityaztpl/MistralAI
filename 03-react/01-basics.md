@@ -470,3 +470,178 @@ Strict Mode helps reveal unsafe patterns in development. In React 18, it intenti
 5. What is a controlled input?
 6. When should you use `useEffect`?
 7. Why might Strict Mode run an effect twice in development?
+
+---
+
+## Deep basics expansion: render, commit, and identity
+
+React interviews often start with "basic" questions that are really testing the mental model beneath the API.
+
+### Render vs commit
+
+Render is React calling your components to compute what the UI should be. Commit is React applying the necessary changes to the host environment, such as the browser DOM.
+
+```tsx
+function Greeting({ name }: { name: string }) {
+  console.log('rendering');
+  return <h1>Hello, {name}</h1>;
+}
+```
+
+The function can run many times. That does not mean React replaced the DOM many times. React compares the output and commits what changed.
+
+Interview answer:
+
+> A render is a calculation. A commit is when React applies the result. This distinction matters because render must be pure, while effects and DOM updates happen after commit.
+
+### Component identity
+
+React preserves state by component type and position in the tree. Keys refine identity among siblings.
+
+```tsx
+function ProfileSwitcher({ userId }: { userId: string }) {
+  return <ProfileForm key={userId} userId={userId} />;
+}
+```
+
+Adding `key={userId}` tells React to reset `ProfileForm` state when the user changes. Without the key, React may preserve state because the component type and position are the same.
+
+Use keys intentionally:
+
+- Preserve identity for stable list items.
+- Reset identity for forms/wizards tied to a different entity.
+- Avoid random keys because they force remounts every render.
+
+### Components inside components
+
+Avoid defining components inside other components unless you intentionally want a new component type each render.
+
+```tsx
+function Page() {
+  function InlinePanel() {
+    return <section>Panel</section>;
+  }
+
+  return <InlinePanel />;
+}
+```
+
+`InlinePanel` is recreated on every `Page` render. If it holds state, that state can reset unexpectedly. Move it outside or pass data through props.
+
+---
+
+## Deep basics expansion: state updates and batching
+
+State setters schedule an update. They do not mutate the variable in the current render.
+
+```tsx
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  function incrementTwiceWrong() {
+    setCount(count + 1);
+    setCount(count + 1);
+  }
+
+  function incrementTwiceRight() {
+    setCount((current) => current + 1);
+    setCount((current) => current + 1);
+  }
+
+  return (
+    <>
+      <button onClick={incrementTwiceWrong}>Wrong</button>
+      <button onClick={incrementTwiceRight}>Right</button>
+    </>
+  );
+}
+```
+
+Use functional updates whenever the next state depends on the previous state. This is especially important when multiple updates can be batched.
+
+Automatic batching:
+
+- React batches many updates during event handlers.
+- React 18 expanded automatic batching to more async contexts.
+- Batching reduces unnecessary renders.
+- If you need to respond after the DOM updates, use effects or specific APIs rather than assuming immediate mutation.
+
+Interview answer:
+
+> I treat state as a snapshot for the current render. If I need to update based on the previous value, I pass an updater function.
+
+---
+
+## Deep basics expansion: forms and accessibility
+
+Accessible markup helps users and makes tests stronger.
+
+Good form basics:
+
+```tsx
+function EmailField() {
+  const [email, setEmail] = useState('');
+  const error = email && !email.includes('@') ? 'Enter a valid email.' : null;
+
+  return (
+    <div>
+      <label htmlFor="email">Email</label>
+      <input
+        id="email"
+        type="email"
+        value={email}
+        aria-invalid={error ? 'true' : 'false'}
+        aria-describedby={error ? 'email-error' : undefined}
+        onChange={(event) => setEmail(event.target.value)}
+      />
+      {error && (
+        <p id="email-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+Accessibility checklist:
+
+- Use real `<button>` elements for actions.
+- Use `<a>`/router links for navigation.
+- Label form controls.
+- Keep keyboard interaction in mind.
+- Use semantic headings and landmarks.
+- Do not remove focus outlines without replacing them.
+- Use `aria-*` to enhance semantics, not to replace native HTML.
+
+Interview answer:
+
+> React does not change HTML accessibility fundamentals. I start with semantic elements, labels, keyboard behavior, and visible focus, then add ARIA only when native semantics are insufficient.
+
+---
+
+## Basic "why did this bug happen?" checklist
+
+- Did state get mutated instead of replaced?
+- Did a list use unstable keys?
+- Did a component remount because its key or type changed?
+- Did code rely on state changing synchronously after a setter?
+- Did an effect derive state that could be computed during render?
+- Did Strict Mode reveal missing cleanup?
+- Did an input switch between controlled and uncontrolled?
+- Did an event handler accidentally execute during render, such as `onClick={save()}`?
+- Did a conditional render accidentally output `0` with `count && <List />`?
+- Did a form submit reload the page because `preventDefault` was missing?
+
+## Expanded basic interview checklist
+
+- Explain JSX transformation at a high level.
+- Explain component composition and `children`.
+- Explain props immutability.
+- Explain state snapshots and functional updates.
+- Explain render vs commit.
+- Explain keys and state preservation.
+- Explain controlled inputs and validation.
+- Explain why effects are not for every state change.
+- Explain Strict Mode double-invocation in development.
+- Explain how accessibility affects component design and tests.
