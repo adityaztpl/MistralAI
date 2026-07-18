@@ -10,7 +10,23 @@ build/
 
 # Env / secrets
 .env
+.env.*
 .env.local
+*.pem
+secrets.json
+appsettings.Development.json
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+
+# Node / frontend
+node_modules/
+.angular/
+.next/
+.vite/
 
 # Outputs & caches
 outputs/*
@@ -23,6 +39,7 @@ outputs/*
 # IDE / OS
 .idea/
 .vscode/
+*.swp
 .DS_Store
 
 # CrewAI
