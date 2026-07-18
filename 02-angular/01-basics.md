@@ -597,3 +597,141 @@ Be ready to answer:
 5. What does `router-outlet` do?
 6. What are template-driven forms good for?
 7. Why does `HttpClient.get<T>()` return an observable?
+
+---
+
+
+## 11. Modern standalone application anatomy
+
+A modern Angular 17+ app is usually bootstrapped with `bootstrapApplication()` and configured with functional providers.
+
+```ts
+bootstrapApplication(AppComponent, {
+  providers: [
+    provideRouter(routes),
+    provideHttpClient(withInterceptors([authInterceptor])),
+  ],
+});
+```
+
+Key files:
+
+- `main.ts`: application bootstrap and root providers.
+- `app.routes.ts`: route tree and lazy boundaries.
+- `app.component.ts`: root shell with navigation and `RouterOutlet`.
+- `core/`: app-wide infrastructure such as auth, interceptors, logging, configuration.
+- `features/`: route-owned screens and state.
+- `shared/`: reusable UI without feature ownership.
+
+Interview checklist:
+
+- Can you explain standalone bootstrap without `AppModule`?
+- Can you name `provideRouter()` and `provideHttpClient()`?
+- Can you explain root providers versus route-level providers?
+- Can you describe why lazy routes reduce initial JavaScript?
+
+## 12. Component API design basics
+
+Good components expose a narrow contract: inputs for data, outputs for events, and services for shared dependencies.
+
+```ts
+@Component({
+  selector: 'app-user-badge',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<button (click)="selected.emit(user().id)">{{ label() }}</button>`,
+})
+export class UserBadgeComponent {
+  user = input.required<{ id: string; firstName: string; lastName: string }>();
+  selected = output<string>();
+  label = computed(() => `${this.user().firstName} ${this.user().lastName}`);
+}
+```
+
+Design checklist:
+
+- Inputs should describe parent-owned data.
+- Outputs should describe user or component events, not commands.
+- Presentational components should not fetch their own feature data.
+- OnPush works best when inputs are immutable and templates read signals or async pipe output.
+
+## 13. Lifecycle hooks in practical order
+
+Angular lifecycle hooks help when construction, input changes, view readiness, or cleanup matters.
+
+| Hook | Typical use |
+| --- | --- |
+| `ngOnChanges` | React to input changes in decorator-era APIs |
+| `ngOnInit` | Start initial non-template work |
+| `ngAfterViewInit` | Integrate with view children or imperative DOM libraries |
+| `ngOnDestroy` | Cleanup subscriptions, listeners, timers, observers |
+
+Modern signals reduce lifecycle boilerplate because derived state can be declared:
+
+```ts
+name = input.required<string>();
+greeting = computed(() => `Hello, ${this.name()}`);
+```
+
+Lifecycle checklist:
+
+- Do not rely on input values in the constructor.
+- Prefer `computed` for simple input-derived state.
+- Use `DestroyRef` and `takeUntilDestroyed` for subscription cleanup.
+- Use `ngAfterViewInit` only when the view must exist.
+
+## 14. Template safety and built-in control flow
+
+Angular templates are compiled and type-checked. Keep expressions simple and stable.
+
+```html
+@if (selectedUser(); as user) {
+  <h2>{{ user.name }}</h2>
+  <a [routerLink]="['/users', user.id]">Open profile</a>
+} @else {
+  <p>Select a user.</p>
+}
+
+@for (order of orders(); track order.id) {
+  <app-order-row [order]="order" />
+} @empty {
+  <p>No orders yet.</p>
+}
+```
+
+Interview checklist:
+
+- Explain why `track item.id` reduces DOM churn.
+- Know that `@if` can narrow nullable values.
+- Know `@empty` for empty list states.
+- Know `@defer` for heavy UI that can load later.
+- Recognize legacy `*ngIf` and `*ngFor`.
+
+## 15. Beginner-to-production decision table
+
+| Question | Beginner answer | Production answer |
+| --- | --- | --- |
+| Where do API calls live? | Component | Feature API service and store |
+| How do I show async data? | Manual subscribe | `AsyncPipe`, `toSignal`, or lifecycle-aware subscription |
+| How do I share state? | Global variable | Service store or NgRx when justified |
+| How do I hide admin UI? | `@if (isAdmin)` | Guard for UX and server authorization for data |
+| How do I optimize lists? | Hope framework handles it | Stable `track`, split rows, virtualize large data |
+
+## 16. Basic architecture vocabulary
+
+- Smart component: owns feature orchestration.
+- Presentational component: receives inputs and emits events.
+- Provider scope: injector boundary controlling service lifetime.
+- Cold observable: work starts on subscription.
+- Signal: synchronous current value with dependency tracking.
+- Computed signal: memoized derived state.
+- Guard: router decision function, not a security boundary.
+- Interceptor: HTTP middleware around requests and responses.
+
+## 17. Basic red flags in interviews
+
+- Saying signals replace RxJS.
+- Saying guards secure backend data.
+- Subscribing manually for every async value.
+- Treating standalone as the same thing as provider scope.
+- Mutating arrays in OnPush/signal state and expecting reliable updates.

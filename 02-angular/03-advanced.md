@@ -447,3 +447,137 @@ Interview answer:
 6. How would you investigate an Angular performance issue?
 7. What makes a good component test?
 8. Why is `bypassSecurityTrustHtml` risky?
+
+---
+
+
+## 9. Advanced signal architecture
+
+Advanced signal architecture treats the application as a graph of source state, derived state, and side effects.
+
+Recommended layering:
+
+1. Writable signals hold source-of-truth state.
+2. Computed signals derive view models.
+3. Effects synchronize with imperative systems.
+4. RxJS handles async sequences, cancellation, and retries.
+5. Components read signals directly in templates.
+
+```ts
+readonly vm = computed(() => ({
+  title: this.filters().query ? `Results for ${this.filters().query}` : 'All products',
+  products: this.filteredProducts(),
+  canClearFilters: this.hasFilters(),
+}));
+```
+
+Checklist:
+
+- Avoid effects that derive state.
+- Use `untracked` only for incidental reads.
+- Keep effects idempotent and cleanup-aware.
+- Avoid deep mutation inside signal values.
+
+## 10. Zoneless migration strategy
+
+Zoneless migration is incremental.
+
+1. Turn on OnPush in leaf components.
+2. Replace subscribe-and-assign fields with `AsyncPipe`, `toSignal`, or signals.
+3. Audit timers, third-party callbacks, and browser APIs.
+4. Use signal writes or `markForCheck()` at imperative boundaries.
+5. Test async UI workflows.
+
+Interview answer:
+
+> Zoneless is less about a provider and more about explicit reactivity. I remove hidden Zone.js assumptions before enabling it broadly.
+
+## 11. SSR, hydration, and consistency
+
+Hydration depends on the server and client first render matching.
+
+Risks:
+
+- `Date.now()` or random values in first render.
+- Browser-only APIs on the server.
+- Different locale/timezone output.
+- Duplicate client refetch before hydration settles.
+- Third-party scripts mutating Angular-owned DOM.
+
+Checklist:
+
+- Guard browser APIs.
+- Reuse transfer state.
+- Avoid leaking per-user data through caches.
+- Monitor hydration mismatch warnings.
+
+## 12. Performance investigation playbook
+
+Classify the issue before optimizing.
+
+| Problem | Investigate |
+| --- | --- |
+| Slow initial load | bundles, network, SSR, cache |
+| Slow interaction | change detection, DOM churn, template work |
+| Slow data | backend, duplicate requests, waterfall |
+| Memory growth | subscriptions, listeners, cached values |
+
+Checklist:
+
+- Measure before changing code.
+- Change one thing at a time.
+- Use stable `track`.
+- Virtualize large lists.
+- Lazy-load heavy routes and defer heavy UI.
+
+## 13. Advanced testing strategy
+
+Use the smallest useful test.
+
+- Pure tests for validators and mappers.
+- Service tests for stores and API clients.
+- Component tests for rendered behavior.
+- Integration tests for routed slices.
+- E2E tests for critical journeys.
+
+Interview checklist:
+
+- Test standalone components through `imports`.
+- Replace providers with fakes.
+- Use `HttpTestingController`.
+- Avoid private implementation assertions.
+
+## 14. Advanced security model
+
+Angular helps with XSS but does not replace application security.
+
+Layers:
+
+- Template escaping and sanitization.
+- CSP and Trusted Types where possible.
+- Server authorization for every protected API.
+- CSRF protection for cookie-authenticated writes.
+- Careful token storage based on threat model.
+- Avoid sanitizer bypass APIs unless content is truly trusted.
+
+## 15. Architecture decision framework
+
+For open-ended design prompts:
+
+1. Clarify requirements.
+2. Identify state shape and ownership.
+3. Choose rendering strategy.
+4. Choose state tools.
+5. Define feature boundaries.
+6. Define loading/error states.
+7. Define testing strategy.
+8. Define performance and security constraints.
+
+## 16. Advanced anti-patterns
+
+- Global stores for route-local state.
+- Effects used as an event bus.
+- Sanitizer bypass as a shortcut.
+- Micro-frontends for simple code organization.
+- Blanket retry on all HTTP methods.
+- Optimizations without measurements.
