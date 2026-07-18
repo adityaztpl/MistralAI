@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: notes-postgres
+    environment:
+      POSTGRES_DB: notes
+      POSTGRES_USER: notes
+      POSTGRES_PASSWORD: notes
+    ports:
+      - "5433:5432"
+    volumes:
+      - notes-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notes -d notes"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    container_name: notes-api
+    working_dir: /src/api
+    command: >
+      bash -lc "dotnet restore &&
+      dotnet watch run --urls http://0.0.0.0:8081"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://0.0.0.0:8081
+      POSTGRES_CONNECTION: Host=postgres;Port=5432;Database=notes;Username=notes;Password=notes
+      JWT_ISSUER: notes-api
+      JWT_AUDIENCE: notes-web
+      JWT_SIGNING_KEY: local-development-signing-key-change-me-32chars
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./api:/src/api
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    image: node:20-alpine
+    container_name: notes-web
+    working_dir: /app
+    command: sh -c "npm install && npm start -- --host 0.0.0.0"
+    environment:
+      NG_APP_API_BASE_URL: http://localhost:8081
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./web:/app
+    depends_on:
+      - api
+
+volumes:
+  notes-postgres-data:
+
