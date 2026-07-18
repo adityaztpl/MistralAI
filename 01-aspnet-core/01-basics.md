@@ -594,6 +594,243 @@ app.MapPost("/api/products", (CreateProductRequest request) =>
 - Keep examples and response metadata accurate.
 - Secure Swagger in production or disable it if not needed.
 
+## 14. Request lifecycle deep dive
+
+A strong interview answer describes ASP.NET Core as a host, a dependency injection container, and a request pipeline working together.
+
+```text
+process starts
+  -> WebApplicationBuilder loads config/logging/DI/hosting defaults
+  -> services are registered
+  -> builder.Build() creates the root provider and endpoint data sources
+  -> Kestrel accepts a connection
+  -> middleware runs in configured order
+  -> endpoint executes with HttpContext and scoped services
+  -> response is written
+```
+
+Key details to explain:
+
+- Kestrel is the cross-platform server; IIS/Nginx/load balancers often sit in front.
+- `HttpContext` carries request, response, user, trace id, features, items, cancellation, and request services.
+- Scoped services are resolved from `HttpContext.RequestServices`.
+- Endpoint metadata drives authorization, filters, OpenAPI, CORS, rate limiting, and output caching.
+- `RequestAborted` should flow to database, HTTP, cache, and queue calls.
+
+```csharp
+app.MapGet("/api/products/{id:int}", async (
+    int id,
+    AppDbContext db,
+    CancellationToken cancellationToken) =>
+{
+    var product = await db.Products
+        .AsNoTracking()
+        .Where(product => product.Id == id)
+        .Select(product => new ProductResponse(product.Id, product.Name, product.Price))
+        .FirstOrDefaultAsync(cancellationToken);
+
+    return product is null ? Results.NotFound() : Results.Ok(product);
+});
+```
+
+Pitfalls:
+
+- Ignoring cancellation wastes work after clients disconnect.
+- Reading the request body manually can interfere with model binding unless buffering is enabled.
+- Writing response headers too late prevents correct status code changes.
+- Blocking request threads with `.Result`, `.Wait()`, or `Thread.Sleep` reduces throughput.
+
+Explain this prompt:
+
+> A request reaches an endpoint protected with `[Authorize]`. Describe every major framework component involved from socket accept to action execution.
+
+A good answer mentions Kestrel, middleware order, endpoint routing, authentication handlers, authorization policy evaluation, model binding, filters, action invocation, and response formatting.
+
+## 15. Endpoint results and `ProblemDetails`
+
+Modern APIs should return consistent response shapes. ASP.NET Core supports typed minimal API results, MVC `ActionResult<T>`, and RFC 7807 `ProblemDetails`.
+
+```csharp
+app.MapGet("/api/orders/{id:int}", async Task<Results<Ok<OrderResponse>, NotFound>> (
+    int id,
+    IOrderQueries orders,
+    CancellationToken cancellationToken) =>
+{
+    var order = await orders.FindAsync(id, cancellationToken);
+    return order is null ? TypedResults.NotFound() : TypedResults.Ok(order);
+});
+```
+
+Why typed results matter:
+
+- The compiler knows which results can be returned.
+- OpenAPI metadata is easier to infer.
+- Tests can assert result types without parsing raw HTTP responses.
+
+Validation customization:
+
+```csharp
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var problem = new ValidationProblemDetails(context.ModelState)
+            {
+                Title = "Request validation failed.",
+                Status = StatusCodes.Status400BadRequest,
+                Instance = context.HttpContext.Request.Path
+            };
+
+            problem.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
+            return new BadRequestObjectResult(problem);
+        };
+    });
+```
+
+Status code table:
+
+| Scenario | Prefer | Why |
+| --- | --- | --- |
+| Resource created | `201 Created` | Includes `Location` for the new resource |
+| Async command accepted | `202 Accepted` | Work is not complete yet |
+| Update with body | `200 OK` | Client receives current representation |
+| Update/delete with no body | `204 No Content` | Saves bandwidth |
+| Validation failure | `400 Bad Request` | Request shape is invalid |
+| Missing/invalid auth | `401 Unauthorized` | Caller must authenticate |
+| Authenticated but blocked | `403 Forbidden` | Caller lacks permission |
+| Duplicate/concurrency issue | `409 Conflict` | Request conflicts with current state |
+| Rate limited | `429 Too Many Requests` | Client should slow down |
+
+Pitfalls:
+
+- Returning `200 OK` for every error forces clients to inspect custom payloads.
+- Returning exception details leaks implementation information.
+- Inconsistent error shapes make client SDKs and monitoring harder.
+
+## 16. Model binding edge cases
+
+Binding sources include route, query, header, body, form/files, and services.
+
+```csharp
+app.MapPost("/api/imports/{source}", async (
+    [FromRoute] string source,
+    [FromQuery] bool dryRun,
+    [FromHeader(Name = "X-Correlation-Id")] string? correlationId,
+    [FromBody] ImportRequest request,
+    IImportService imports,
+    CancellationToken cancellationToken) =>
+{
+    var result = await imports.StartAsync(source, dryRun, request, correlationId, cancellationToken);
+    return Results.Accepted($"/api/imports/{result.Id}", result);
+});
+```
+
+For large uploads:
+
+- Set explicit size limits.
+- Stream instead of buffering full files.
+- Validate content type and file extension independently.
+- Scan untrusted files outside the request path when scanning is slow.
+
+```csharp
+app.MapPost("/api/uploads", async (HttpRequest request, CancellationToken cancellationToken) =>
+{
+    if (!request.HasFormContentType)
+    {
+        return Results.BadRequest("multipart/form-data is required.");
+    }
+
+    var form = await request.ReadFormAsync(cancellationToken);
+    var file = form.Files.GetFile("file");
+    if (file is null || file.Length == 0)
+    {
+        return Results.BadRequest("File is required.");
+    }
+
+    await using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+    return Results.Accepted();
+});
+```
+
+Pitfalls:
+
+- Two `[FromBody]` parameters cannot normally read the same body.
+- Decimal/date parsing can surprise clients; prefer ISO formats.
+- Binding constructs values; validation still needs to run.
+
+## 17. Configuration, options, and environment discipline
+
+Provider precedence usually flows from broad defaults to environment overrides:
+
+```text
+appsettings.json -> appsettings.Environment.json -> user secrets -> environment variables -> command line
+```
+
+Validated options:
+
+```csharp
+public sealed class PaymentsOptions
+{
+    public const string SectionName = "Payments";
+
+    [Required]
+    [Url]
+    public string BaseUrl { get; init; } = string.Empty;
+
+    [Range(1, 30)]
+    public int TimeoutSeconds { get; init; } = 10;
+}
+
+builder.Services.AddOptions<PaymentsOptions>()
+    .Bind(builder.Configuration.GetSection(PaymentsOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+```
+
+Use environment checks for operational behavior, not business rules.
+
+```csharp
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+else
+{
+    app.UseHsts();
+}
+```
+
+Checklist:
+
+- [ ] Explain configuration provider precedence.
+- [ ] Bind and validate options.
+- [ ] Compare `IOptions<T>`, `IOptionsSnapshot<T>`, and `IOptionsMonitor<T>`.
+- [ ] Explain how containers pass nested config with double underscores.
+- [ ] Explain why required config should fail at startup.
+
+## 18. Fundamentals lab: production-shaped task API
+
+Practice implementing this from memory:
+
+- `GET /api/tasks` returns a paged list.
+- `GET /api/tasks/{id}` returns one task or `404`.
+- `POST /api/tasks` validates title and returns `201 Created`.
+- `PATCH /api/tasks/{id}/complete` returns `204` or `404`.
+- All responses use DTOs.
+- Write endpoints log task ids.
+- Invalid input returns `ProblemDetails`.
+- Swagger describes response codes.
+
+Follow-up prompts:
+
+- What changes when storage moves from memory to EF Core?
+- Where should authorization be added?
+- How would you version this API after a breaking contract change?
+- How would you add correlation IDs and structured logs?
+- Which parts belong in middleware versus endpoint filters?
+
 ## 14. Basics interview drill
 
 Practice answering these out loud:

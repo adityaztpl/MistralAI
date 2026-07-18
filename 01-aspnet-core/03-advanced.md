@@ -708,7 +708,201 @@ public sealed class ProductService
 - Instrument inbound requests, outbound HTTP calls, database calls, and queue processing.
 - Avoid high-cardinality metric labels such as raw user IDs or request paths with IDs.
 
-## 13. Advanced interview drill
+## 13. Production architecture decision records
+
+Senior interviews test judgment: when to choose an approach, what tradeoffs it creates, and how to reverse it later. Architecture Decision Records (ADRs) keep reasoning visible.
+
+```text
+Title: Use vertical slices with MediatR for order workflows
+Status: Accepted
+Context: Order workflows need validation, metrics, and transaction behavior.
+Decision: Commands and queries live beside handlers, validators, and endpoints.
+Consequences:
+  + Feature changes are localized.
+  + Pipeline behaviors centralize validation and observability.
+  - More files than direct controller/service calls.
+  - New developers need conventions explained.
+Review date: After three more workflows ship.
+```
+
+Interview talking points:
+
+- Architecture is about constraints, not aesthetics.
+- A good decision explains alternatives rejected.
+- Reversibility matters.
+- Fitness functions such as test speed, deployment frequency, and latency SLOs validate architecture.
+
+Explain this prompt:
+
+> The team wants Clean Architecture for every API, including a two-endpoint internal webhook receiver. What questions would you ask before agreeing?
+
+## 14. Advanced data consistency patterns
+
+Distributed systems make consistency a design choice. ASP.NET Core services often combine EF Core, message brokers, retries, and external APIs.
+
+Transactional outbox:
+
+```text
+request handler
+  -> update aggregate
+  -> insert outbox message
+  -> SaveChanges transaction commits
+outbox publisher
+  -> reads unpublished messages
+  -> publishes to broker
+  -> marks message published
+```
+
+```csharp
+public sealed class OutboxMessage
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Type { get; set; } = string.Empty;
+    public string Payload { get; set; } = string.Empty;
+    public DateTimeOffset OccurredAt { get; set; }
+    public DateTimeOffset? PublishedAt { get; set; }
+    public string? Error { get; set; }
+}
+```
+
+Idempotency keys protect retried POST operations:
+
+```csharp
+public sealed class IdempotencyRecord
+{
+    public string Key { get; set; } = string.Empty;
+    public string RequestHash { get; set; } = string.Empty;
+    public int StatusCode { get; set; }
+    public string ResponseBody { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+}
+```
+
+Pitfalls:
+
+- Publishing before DB commit can create ghost events.
+- Committing before publish can lose events without an outbox.
+- Retrying non-idempotent writes can duplicate orders or charges.
+- Exactly-once delivery is rarely available end-to-end; design for at-least-once.
+
+## 15. Advanced security architecture
+
+Use threat modeling to connect framework features to real risks.
+
+| Threat | API example | ASP.NET Core mitigation |
+| --- | --- | --- |
+| Spoofing | forged token | validate issuer/audience/signature, HTTPS |
+| Tampering | changed route id | object authorization, concurrency tokens |
+| Repudiation | user denies action | audit logs with user and trace id |
+| Information disclosure | overbroad DTO | response shaping, classification |
+| Denial of service | expensive search | rate limits, pagination, cancellation |
+| Elevation of privilege | role claim abuse | trusted issuer, least privilege policies |
+
+Resource authorization handler:
+
+```csharp
+public sealed class SameTenantOrderRequirement : IAuthorizationRequirement;
+
+public sealed class SameTenantOrderHandler
+    : AuthorizationHandler<SameTenantOrderRequirement, Order>
+{
+    protected override Task HandleRequirementAsync(
+        AuthorizationHandlerContext context,
+        SameTenantOrderRequirement requirement,
+        Order resource)
+    {
+        var tenantId = context.User.FindFirst("tenant_id")?.Value;
+        if (!string.IsNullOrWhiteSpace(tenantId) && tenantId == resource.TenantId)
+        {
+            context.Succeed(requirement);
+        }
+
+        return Task.CompletedTask;
+    }
+}
+```
+
+Security review checklist:
+
+- [ ] All endpoints have explicit anonymous/authenticated decisions.
+- [ ] Resource ownership is checked after loading resources.
+- [ ] DTOs prevent mass assignment.
+- [ ] Secrets are loaded from managed providers.
+- [ ] Auth failures are logged without token values.
+- [ ] CORS allows only known origins.
+- [ ] Rate limits protect anonymous and expensive endpoints.
+- [ ] Error responses do not leak stack traces.
+
+## 16. Advanced deployment and runtime operations
+
+Containerized ASP.NET Core services should:
+
+- Listen on the expected port from `ASPNETCORE_URLS` or `HTTP_PORTS`.
+- Expose `/health/live` for process health.
+- Expose `/health/ready` for dependency readiness.
+- Fail fast when required configuration is missing.
+- Use graceful shutdown for in-flight requests and workers.
+
+```csharp
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.ShutdownTimeout = TimeSpan.FromSeconds(30);
+});
+```
+
+Environment variables use double underscores for nesting:
+
+```text
+ConnectionStrings__Default=...
+Jwt__Issuer=https://issuer.example.com
+Jwt__Audience=catalog-api
+Logging__LogLevel__Microsoft.AspNetCore=Warning
+```
+
+Pitfalls:
+
+- A readiness endpoint that checks slow dependencies too frequently can create load.
+- Automatic migrations on every instance can race.
+- Ignoring memory limits and GC behavior can cause container restarts.
+
+## 17. Senior performance and reliability review
+
+API surface:
+
+- [ ] List endpoints require pagination and deterministic ordering.
+- [ ] Expensive filters are indexed or rejected.
+- [ ] Payloads are bounded and projected.
+- [ ] OpenAPI docs include auth and error responses.
+
+Data access:
+
+- [ ] Read queries use `AsNoTracking` or no-tracking defaults.
+- [ ] Write workflows use concurrency tokens where overwrites matter.
+- [ ] N+1 checks exist for important endpoints.
+- [ ] Migrations are reviewed and deployed explicitly.
+- [ ] Hot query plans are inspected.
+
+Resiliency:
+
+- [ ] Outbound HTTP uses `HttpClientFactory`.
+- [ ] Timeouts are shorter than gateway timeouts.
+- [ ] Retries apply only to transient safe operations.
+- [ ] Circuit breakers protect dependencies.
+- [ ] Idempotency keys protect retried writes.
+
+Observability:
+
+- [ ] Logs are structured and include trace/user/tenant context.
+- [ ] Traces include inbound requests, DB queries, HTTP calls, and queue work.
+- [ ] Metrics track latency, error rate, request rate, and saturation.
+- [ ] Dashboards align with SLOs.
+- [ ] Alerts are actionable.
+
+Explain this prompt:
+
+> Production latency increased from p95 120 ms to p95 900 ms after a release. What evidence do you gather first?
+
+## 18. Advanced interview drill
 
 Practice answering these questions:
 
