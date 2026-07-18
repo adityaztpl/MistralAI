@@ -1,3 +1,14 @@
+# MistralAI
+
+This repository contains two complementary workstreams:
+
+| Area | What it is | Start here |
+|------|------------|------------|
+| **Prep curriculum** | Full-stack + Gen AI interview prep (ASP.NET, Angular, React, RAG/LangChain/LangGraph) | Sections below |
+| **Instagram content creator** | CrewAI + Mistral multi-agent content pack generator | [`projects/instagram-content-creator.md`](projects/instagram-content-creator.md) |
+
+---
+
 # Full-Stack + Gen AI Prep Curriculum
 
 Interview and hands-on prep from **basic → advanced** covering:
@@ -11,16 +22,12 @@ Interview and hands-on prep from **basic → advanced** covering:
 
 Start here → follow the roadmap → practice with examples → drill interview questions.
 
----
-
 ## Quick start
 
 1. Read [`00-roadmap/learning-path.md`](00-roadmap/learning-path.md) (week-by-week plan)
 2. Pick a track below and work basic → intermediate → advanced
 3. Run/study the `examples/` folders alongside each section
 4. Finish with [`06-interview-prep/`](06-interview-prep/) and a project from [`05-fullstack-integration/project-ideas.md`](05-fullstack-integration/project-ideas.md)
-
----
 
 ## Curriculum map
 
@@ -32,6 +39,8 @@ Start here → follow the roadmap → practice with examples → drill interview
 04-genai/                    RAG · LangChain · LangGraph · Semantic Kernel
 05-fullstack-integration/    Architecture · API contracts · projects
 06-interview-prep/           Q&A · AI system design
+projects/                    Standalone app docs (Instagram creator)
+src/                         Instagram content creator package
 ```
 
 ### 1. ASP.NET Core
@@ -89,8 +98,6 @@ Start here → follow the roadmap → practice with examples → drill interview
 - [Gen AI questions](06-interview-prep/questions-genai.md)
 - [AI app system design](06-interview-prep/system-design-ai-apps.md)
 
----
-
 ## Suggested study order
 
 ```text
@@ -107,8 +114,6 @@ Advanced backend/frontend + interview drills + capstone project
 
 You can do **Angular and React in parallel** after ASP.NET basics, or pick one frontend for depth.
 
----
-
 ## How to use the code examples
 
 | Folder | Language | How to study |
@@ -119,8 +124,6 @@ You can do **Angular and React in parallel** after ASP.NET basics, or pick one f
 | `04-genai/examples/` | Python + C# | `pip install` deps noted in each file; SK samples go in ASP.NET |
 
 Many Gen AI examples need API keys (`OPENAI_API_KEY`, `MISTRAL_API_KEY`, etc.). Prefer env vars — never commit secrets.
-
----
 
 ## Capstone shape (target architecture)
 
@@ -138,7 +141,27 @@ Build this using the contracts in `05-fullstack-integration/`.
 
 ---
 
+# Instagram Content Creator (app)
+
+Multi-agent Instagram content generator (CrewAI + Mistral). Full setup, run commands, and config live in:
+
+→ [`projects/instagram-content-creator.md`](projects/instagram-content-creator.md)
+
+Quick run:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env   # set MISTRAL_API_KEY
+instagram-content -d "Your brand" -t "Weekly topic" -n 3
+```
+
+Sample pack: [`examples/sample_run/`](examples/sample_run/)
+
+---
+
 ## License / purpose
 
-Personal interview and skills prep material with teaching-oriented code samples.
-Not a production template — adapt patterns before shipping.
+Curriculum material is for interview and skills prep (teaching-oriented samples, not a production template).
+The Instagram creator under `src/` is a runnable CrewAI application — see its project doc for usage.
