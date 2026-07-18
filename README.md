@@ -6,6 +6,7 @@ This repository contains two complementary workstreams:
 |------|------------|------------|
 | **Prep curriculum** | Full-stack + Gen AI interview prep (ASP.NET, Angular, React, RAG/LangChain/LangGraph) | Sections below |
 | **Instagram content creator** | CrewAI + Mistral multi-agent content pack generator | [`projects/instagram-content-creator.md`](projects/instagram-content-creator.md) |
+| **Remotion video curriculum** | React-based video rendering, cloud rendering, captions, Studio workflows, examples, and cheatsheets | [`Remotion/`](Remotion/) |
 
 ---
 
@@ -20,6 +21,7 @@ Interview and hands-on prep from **basic → advanced** covering:
 | Frontend | React (hooks + concurrent features) |
 | Gen AI | RAG, LangChain, LangGraph, Semantic Kernel |
 | Java Fullstack | Spring Boot, React, Angular, PostgreSQL, SQL Server, AWS |
+| Video automation | Remotion rendering, Lambda/Cloud Run, captions, Three.js, Studio |
 | Practice | Take-home kits, debugging playbooks, data platform drills |
 
 Start here → follow the roadmap → practice with examples → drill interview questions.
@@ -53,6 +55,7 @@ Start here → follow the roadmap → practice with examples → drill interview
 16-capstone-instagram/       Full-stack Instagram creator capstone over CrewAI/Mistral
 17-spring-boot/              Spring Boot 3 interview and production prep
 18-java-fullstack/           Java Spring Boot + React/Angular + SQL + AWS fullstack prep
+Remotion/                    Remotion video curriculum: rendering, cloud, captions, Studio, examples
 projects/                    Standalone app docs (Instagram creator)
 src/                         Instagram content creator package
 ```
@@ -128,6 +131,7 @@ src/                         Instagram content creator package
 | 16. Instagram capstone | [Section README](16-capstone-instagram/README.md) | Wrap the CrewAI/Mistral app in a full-stack SaaS-style product |
 | 17. Spring Boot | [Section README](17-spring-boot/README.md) | Prepare Spring Boot 3 fundamentals, security, data, AWS integrations, and interview questions |
 | 18. Java fullstack | [Section README](18-java-fullstack/README.md) | Build and explain Spring Boot APIs with React/Angular clients, PostgreSQL/SQL Server, Docker, and AWS deployment |
+| Remotion video | [Section README](Remotion/) | Build React-based videos, render locally/cloud, add captions, and use Studio workflows |
 
 ### 9. Take-home kits
 
