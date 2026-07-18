@@ -379,3 +379,331 @@ Track attempts in state, set recursion/step limits, route to fallback after a th
 4. Add checkpointed chat memory using `thread_id`.
 5. Design a human approval interrupt before calling a "send email" tool.
 
+---
+
+## 15. Graph design methodology
+
+Design a LangGraph workflow by starting with states and failure modes, not with model prompts.
+
+### Step 1: Define the outcome
+
+```text
+Goal:
+Answer a user support question with citations, or explain why the evidence is insufficient.
+```
+
+### Step 2: Define state
+
+Include only fields that nodes need or update.
+
+```python
+class SupportRagState(TypedDict):
+    tenant_id: str
+    question: str
+    rewritten_query: str
+    documents: list[dict]
+    answer: str
+    citations_valid: bool
+    attempts: int
+    route: str
+```
+
+### Step 3: Define nodes
+
+Each node should have one responsibility:
+
+- `rewrite_query`
+- `retrieve`
+- `grade_documents`
+- `generate`
+- `validate_citations`
+- `fallback`
+
+### Step 4: Define transitions
+
+```mermaid
+flowchart TD
+  A[rewrite_query] --> B[retrieve]
+  B --> C[grade_documents]
+  C -->|good| D[generate]
+  C -->|bad and attempts left| A
+  C -->|bad and exhausted| F[fallback]
+  D --> E[validate_citations]
+  E -->|valid| END
+  E -->|invalid and attempts left| B
+  E -->|invalid exhausted| F
+```
+
+### Step 5: Define stop conditions
+
+Every loop needs:
+
+- Attempt counter.
+- Recursion limit.
+- Fallback route.
+- Trace signal explaining why it stopped.
+
+---
+
+## 16. State schema best practices
+
+### Keep state serializable
+
+Checkpointers need to persist state. Avoid storing:
+
+- Open DB connections.
+- Provider clients.
+- File handles.
+- Large binary payloads.
+
+Store IDs and lightweight summaries instead.
+
+### Separate durable state from runtime dependencies
+
+Good:
+
+```python
+def retrieve(state: RagState) -> dict:
+    docs = retriever.invoke(state["query"])
+    return {"documents": serialize_docs(docs)}
+```
+
+Bad:
+
+```python
+state["retriever"] = retriever
+```
+
+### Track audit-critical fields
+
+- `tenant_id`
+- `user_id` or hash.
+- `prompt_version`
+- `index_version`
+- `tool_call_ids`
+- `approval_ids`
+- `attempts`
+
+---
+
+## 17. Interrupts and approvals
+
+Human-in-the-loop is one of LangGraph's strongest production patterns.
+
+### Approval payload
+
+```json
+{
+  "action": "send_refund",
+  "arguments": {
+    "invoice_id": "INV-1009",
+    "amount": 49.00
+  },
+  "evidence": [
+    "Customer was charged twice",
+    "Refund policy allows duplicate-charge refund"
+  ],
+  "risk": "money_movement",
+  "idempotency_key": "refund-INV-1009-20260717"
+}
+```
+
+### Approval flow
+
+```mermaid
+sequenceDiagram
+  participant Graph
+  participant App
+  participant Reviewer
+  Graph->>App: interrupt with proposed action
+  App->>Reviewer: show approval UI
+  Reviewer-->>App: approve/edit/reject
+  App->>Graph: resume with reviewer decision
+  Graph->>Graph: route to execute or fallback
+```
+
+Rules:
+
+- Interrupt before the side effect, not after.
+- Show exact tool arguments.
+- Include source evidence.
+- Persist reviewer identity and decision.
+- Use idempotency keys when resuming execution.
+
+---
+
+## 18. Tool execution node pattern
+
+Keep model decision and tool execution separate.
+
+```python
+def route_tool_or_answer(state: AgentState) -> str:
+    last = state["messages"][-1]
+    if getattr(last, "tool_calls", None):
+        return "validate_tool_call"
+    return "final"
+
+
+def validate_tool_call(state: AgentState) -> dict:
+    tool_call = state["messages"][-1].tool_calls[0]
+    if tool_call["name"] not in ALLOWED_TOOLS:
+        return {"route": "reject_tool"}
+    validate_args(tool_call["name"], tool_call["args"], state["tenant_id"])
+    return {"route": "execute_tool"}
+```
+
+This gives application code a chance to enforce:
+
+- Tool allow-list.
+- Argument schema.
+- Tenant/user authorization.
+- Side-effect approval requirements.
+- Rate limits.
+
+---
+
+## 19. Agentic RAG grading
+
+Agentic RAG often uses model graders. Keep graders small and structured.
+
+### Document relevance grader
+
+```text
+Question:
+{question}
+
+Document:
+{document}
+
+Can this document directly help answer the question?
+Return JSON:
+{"relevant": true|false, "reason": "one sentence"}
+```
+
+### Answer faithfulness grader
+
+```text
+Answer:
+{answer}
+
+Context:
+{context}
+
+Is every factual claim supported by context?
+Return JSON:
+{"faithful": true|false, "unsupported_claims": ["string"]}
+```
+
+### Grader pitfalls
+
+- Graders add cost and latency.
+- Graders can be wrong.
+- Graders may share model blind spots.
+- Overly vague rubrics produce noisy routes.
+
+Use deterministic checks first where possible, such as citation IDs and schema validity.
+
+---
+
+## 20. Concurrency and reducers
+
+LangGraph can support branches that update state. Reducers define how updates merge.
+
+Example use cases:
+
+- Parallel retrieval from docs and tickets.
+- Parallel specialist agents.
+- Parallel safety checks.
+
+```mermaid
+flowchart TD
+  A[Question] --> B[Docs retriever]
+  A --> C[Tickets retriever]
+  B --> D[Merge documents reducer]
+  C --> D
+  D --> E[Rerank]
+```
+
+Reducer design matters:
+
+- Append lists instead of overwriting.
+- Deduplicate by stable IDs.
+- Preserve source metadata.
+- Avoid nondeterministic ordering when tests need stable results.
+
+---
+
+## 21. Deployment and operations
+
+### Runtime controls
+
+- `recursion_limit`
+- request timeout
+- per-node timeout
+- provider retry limits
+- tool rate limits
+- checkpoint retention policy
+
+### Trace each node
+
+Log:
+
+- node name
+- input summary
+- output keys
+- latency
+- token usage
+- model/tool name
+- route decision
+- error details
+
+### Checkpoint storage
+
+Choose storage based on:
+
+- durability needs
+- data sensitivity
+- retention policy
+- query/debug requirements
+- throughput
+
+Do not store raw sensitive prompts indefinitely without a retention and access-control plan.
+
+---
+
+## 22. LangGraph anti-patterns
+
+| Anti-pattern | Why it hurts | Better pattern |
+|---|---|---|
+| One giant node | No observability/control | Split by responsibility |
+| Model router for simple if/else | Extra cost/nondeterminism | Deterministic route |
+| No loop limit | Runaway execution | Attempts + recursion limit |
+| State contains clients | Serialization issues | Inject dependencies outside state |
+| Broad tool executor | Security risk | Validate tool-specific calls |
+| Multi-agent for simple tasks | Cost/latency explosion | Single graph/chain |
+| No fallback route | Bad user experience | Clear fallback/clarify route |
+
+---
+
+## 23. Additional interview questions
+
+### Q: How do you design state for LangGraph?
+
+Include serializable fields that nodes need, use reducers for append/merge behavior, track attempts and audit metadata, and keep runtime clients outside state.
+
+### Q: What is an interrupt used for?
+
+An interrupt pauses graph execution so external input, usually human approval, can be collected before resuming.
+
+### Q: How do you debug a graph route?
+
+Inspect node traces, state updates, route function outputs, attempt counters, prompt/model versions, retrieved docs, tool calls, and checkpoint snapshots.
+
+### Q: How do you avoid overusing LangGraph?
+
+Use LCEL or deterministic code for simple acyclic flows. Use LangGraph when state, cycles, persistence, human review, or explicit multi-step control adds real value.
+
+### Q: What makes agentic RAG risky?
+
+It can loop, add latency/cost, rewrite queries incorrectly, over-trust graders, and still hallucinate without validation. Bound loops and evaluate each route.
+

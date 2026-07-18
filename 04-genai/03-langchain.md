@@ -472,3 +472,266 @@ Use provider-native structured output when available through `with_structured_ou
 4. Create a tool that calls a fake CRM API.
 5. Compare a simple agent with an explicit LangGraph workflow.
 
+---
+
+## 15. LCEL advanced patterns
+
+LCEL is most powerful when composing small runnables.
+
+### Branching
+
+```python
+from langchain_core.runnables import RunnableBranch
+
+route = RunnableBranch(
+    (lambda x: "billing" in x["question"].lower(), billing_chain),
+    (lambda x: "api key" in x["question"].lower(), security_chain),
+    general_chain,
+)
+```
+
+Use branching for simple deterministic routing. If routing becomes stateful or cyclic, consider LangGraph.
+
+### Assigning intermediate values
+
+```python
+from langchain_core.runnables import RunnablePassthrough
+
+chain = (
+    RunnablePassthrough.assign(
+        context=lambda x: retriever.invoke(x["question"]),
+    )
+    .assign(
+        formatted_context=lambda x: format_docs(x["context"]),
+    )
+    | prompt
+    | model
+    | parser
+)
+```
+
+This keeps intermediate values visible for debugging.
+
+### Retries and fallbacks
+
+```python
+primary = model.with_retry(stop_after_attempt=2)
+fallback_chain = prompt | fallback_model | parser
+
+chain = (prompt | primary | parser).with_fallbacks([fallback_chain])
+```
+
+Use fallbacks carefully. A fallback model must satisfy the same privacy and quality constraints.
+
+---
+
+## 16. Config, tracing, and metadata
+
+LangChain runnables accept config that can carry tags and metadata into traces.
+
+```python
+result = chain.invoke(
+    {"question": "How do I rotate API keys?"},
+    config={
+        "run_name": "support_rag_answer",
+        "tags": ["rag", "support", "prompt:v3"],
+        "metadata": {
+            "tenant_id": "acme",
+            "prompt_version": "support-rag-v3",
+            "index_version": "docs-2026-07-17",
+        },
+    },
+)
+```
+
+Trace metadata helps answer:
+
+- Which prompt version produced this answer?
+- Which retriever/index was used?
+- How many tokens were spent?
+- Which stage was slow?
+- Did a tool call fail?
+
+Do not include secrets or raw PII in trace metadata.
+
+---
+
+## 17. Streaming with LCEL
+
+Most LCEL chains can stream if downstream components support streaming.
+
+```python
+for chunk in chain.stream({"topic": "RAG"}):
+    print(chunk, end="", flush=True)
+```
+
+For chat APIs, stream from backend to frontend using SSE or WebSockets:
+
+```python
+async for chunk in chain.astream({"question": question}):
+    await send_sse({"delta": str(chunk)})
+```
+
+Streaming considerations:
+
+- Run retrieval before first token unless retrieval itself is streamed as progress events.
+- Support cancellation.
+- Capture time to first token.
+- Do final citation/schema validation before marking the response complete.
+- Decide whether to buffer unsafe content until output guardrails run.
+
+---
+
+## 18. Retriever deep dive in LangChain
+
+LangChain retrievers are runnables, so they can be composed.
+
+### Multi-query retriever concept
+
+```python
+generated_queries = query_expansion_chain.invoke({"question": question})
+docs = []
+for query in generated_queries:
+    docs.extend(retriever.invoke(query))
+deduped = dedupe_docs(docs)
+```
+
+### Self-query retriever concept
+
+The model converts natural language into search text plus metadata filters.
+
+```text
+User: Show internal API key docs updated after July 1.
+
+Search query: API key
+Filters:
+  visibility = internal
+  updated_at >= 2026-07-01
+```
+
+Use self-query only when you can validate generated filters. Never allow the model to bypass tenant/ACL filters.
+
+### Contextual compression
+
+Compression removes irrelevant sections from retrieved documents before final prompting.
+
+Pros:
+
+- Reduces tokens.
+- Improves precision.
+
+Cons:
+
+- Adds latency/cost.
+- Can remove needed evidence if prompt/model is weak.
+
+---
+
+## 19. LangChain production pitfalls
+
+| Pitfall | Consequence | Mitigation |
+|---|---|---|
+| Copying tutorial chains into production | Missing auth/eval/observability | Wrap chains in application services |
+| Hiding too much inside chains | Hard to debug | Keep retrieval, prompt, model, parser explicit |
+| No prompt versioning | Regressions hard to attribute | Tag runs with prompt IDs |
+| Legacy memory classes used blindly | Token growth/stale context | Manage history explicitly |
+| Tool functions call business systems directly | Auth bypass risk | Delegate to authorized services |
+| No structured output validation | Runtime failures | Pydantic/provider schemas + app validation |
+| No timeout/cancellation | Bad UX and resource leaks | Configure client and request timeouts |
+
+---
+
+## 20. Testing LangChain code
+
+### Unit test components
+
+- Prompt formatting.
+- Document formatting.
+- Output parsing.
+- Citation ID extraction.
+- Tool input validation.
+- Retriever filters.
+
+### Fake model pattern
+
+Use fake or stub models for deterministic tests where possible.
+
+```python
+class FakeModel:
+    def invoke(self, messages):
+        return "fake response"
+```
+
+For integration/eval tests, call real models against a small golden set and record scorecards.
+
+### Test pyramid
+
+```mermaid
+flowchart TD
+  A[Many deterministic unit tests] --> B[Component tests with fake retriever/model]
+  B --> C[Small golden eval suite]
+  C --> D[Manual review/canary]
+```
+
+---
+
+## 21. Deployment patterns
+
+### In-process Python service
+
+Use when the product backend is Python or when a dedicated AI service owns orchestration.
+
+### Separate AI microservice
+
+Use when:
+
+- Main backend is .NET/Java/Node.
+- AI code depends on Python libraries.
+- Multiple products share the AI service.
+- Independent scaling and evaluation are useful.
+
+### Serverless/background workers
+
+Good for:
+
+- Embedding jobs.
+- Batch summarization.
+- Offline evals.
+
+Be careful with cold starts, provider timeouts, and long-running agent workflows.
+
+---
+
+## 22. LangChain vs direct provider SDK
+
+| Use direct SDK when | Use LangChain when |
+|---|---|
+| One simple chat call | Many composable prompts/chains |
+| Minimal dependencies matter | You need loaders/splitters/retrievers |
+| Full provider feature control | You need model abstraction |
+| Strict production control | You use LCEL/tracing/tools productively |
+
+Interview answer:
+
+> I do not use LangChain just because it exists. I use it when its abstractions reduce integration work or improve composition/tracing. For simple calls, direct SDKs are often clearer.
+
+---
+
+## 23. Additional interview questions
+
+### Q: What is a Runnable?
+
+A Runnable is LangChain's composable unit. Prompts, models, parsers, retrievers, lambdas, and chains can all expose methods like `invoke`, `stream`, `batch`, and async variants.
+
+### Q: How do you debug a LangChain RAG chain?
+
+Inspect each stage: rewritten query, retrieved docs and scores, formatted context, final prompt, model output, parser result, citations, and trace metadata.
+
+### Q: How do you make LangChain production-safe?
+
+Put chains behind application services with auth, validation, timeouts, cost controls, prompt versioning, evals, and observability. Avoid broad tools and hidden state.
+
+### Q: When should LangChain code move to LangGraph?
+
+When chains need cycles, durable state, human approval, explicit conditional routes, or multi-agent coordination.
+

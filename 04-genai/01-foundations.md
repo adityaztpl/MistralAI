@@ -579,3 +579,238 @@ Prompt injection is when untrusted content attempts to override system instructi
 4. Add a calculator tool and require the model to use it for arithmetic.
 5. Compare RAG vs fine-tuning for a customer support knowledge base.
 
+---
+
+## 14. Advanced mental model: LLMs as probabilistic components
+
+In production architecture, treat an LLM like a remote probabilistic service:
+
+```mermaid
+flowchart TD
+  A[User intent] --> B[Application policy]
+  B --> C[Context assembly]
+  C --> D[LLM call]
+  D --> E[Validation]
+  E --> F{Valid and useful?}
+  F -- yes --> G[Return response]
+  F -- no --> H[Retry, fallback, clarify, or escalate]
+```
+
+This framing leads to better engineering decisions:
+
+- **Inputs must be bounded**: token budgets, max document count, max history length.
+- **Outputs must be validated**: schema, citations, policy, business rules.
+- **Failures must be expected**: timeouts, rate limits, malformed JSON, weak answers.
+- **Changes must be measured**: model upgrades and prompt edits need evals.
+- **State must be explicit**: conversation memory lives in your app, not magically in the model.
+
+### Deterministic code vs model judgment
+
+| Requirement | Prefer deterministic code | Prefer LLM |
+|---|---|---|
+| Exact math | Yes | No |
+| Database authorization | Yes | No |
+| Natural language summarization | No | Yes |
+| Strict workflow routing with known rules | Yes | Sometimes classifier |
+| Ambiguous user intent | Sometimes | Yes |
+| Compliance decision with hard policy | Yes for final gate | LLM can assist with evidence |
+
+Interview phrase:
+
+> I use the LLM for language understanding and generation, but I keep authority, validation, and irreversible decisions in deterministic application code.
+
+---
+
+## 15. Model selection and routing
+
+Not every request should use the largest model.
+
+```mermaid
+flowchart TD
+  Q[Incoming request] --> C[Classify task]
+  C -->|simple classification| S[Small/cheap model]
+  C -->|grounded answer| R[RAG + mid model]
+  C -->|complex reasoning| L[Larger model]
+  C -->|unsafe/unsupported| E[Escalate/refuse]
+```
+
+### Selection criteria
+
+| Criterion | Questions to ask |
+|---|---|
+| Quality | Does it pass task-specific evals? |
+| Latency | Can it meet p95 and first-token targets? |
+| Cost | Is cost/request acceptable at expected volume? |
+| Context | Does it support required input/output budget? |
+| Tool support | Does it handle structured tool calls reliably? |
+| Structured output | Does it support JSON/schema mode or equivalent? |
+| Data policy | Are retention/training/residency acceptable? |
+| Availability | Does it meet reliability and regional needs? |
+
+### Routing examples
+
+- Use a small model for intent classification.
+- Use embeddings + vector DB for retrieval.
+- Use a stronger model for final answers in high-value workflows.
+- Use deterministic code for policy gates.
+- Use fallback models only when they meet data and safety requirements.
+
+---
+
+## 16. Context engineering
+
+Context engineering is the broader discipline around what information enters the model request.
+
+Sources of context:
+
+- System/developer instructions.
+- User message.
+- Conversation history.
+- Retrieved documents.
+- Tool results.
+- User profile/preferences.
+- Product state.
+- Time/location if relevant and allowed.
+
+### Context budget template
+
+```text
+Total context window:            128,000
+System/developer instructions:     2,000
+Few-shot examples:                 4,000
+Recent chat history:              12,000
+Retrieved docs:                   40,000
+Tool results:                      3,000
+Expected output:                   4,000
+Safety margin:                     3,000
+Unused/overflow budget:           60,000
+```
+
+Large context windows do not remove the need for selection. A long prompt can be:
+
+- Slower.
+- More expensive.
+- Easier to distract.
+- Harder to evaluate.
+- More likely to include irrelevant or unauthorized data.
+
+### Context ordering
+
+There is no universal perfect order, but a common pattern is:
+
+1. High-level instructions.
+2. Output contract.
+3. Relevant policy.
+4. Retrieved evidence.
+5. User request.
+
+Keep untrusted data clearly labeled and delimited.
+
+---
+
+## 17. Structured outputs and validation
+
+Structured outputs turn model text into application data.
+
+```mermaid
+flowchart LR
+  P[Prompt with schema] --> M[Model]
+  M --> J[JSON output]
+  J --> V[Schema validation]
+  V --> B[Business validation]
+  B --> A[Application action]
+```
+
+### Validation layers
+
+| Layer | Example |
+|---|---|
+| Syntax | Valid JSON |
+| Schema | Required fields and enum values |
+| Semantic | Date is in expected range |
+| Authorization | User can access referenced record |
+| Business | Refund amount below allowed threshold |
+| Evidence | Citation quote exists in retrieved context |
+
+If validation fails, options include:
+
+- Ask the model to repair using the validation error.
+- Retry with stricter prompt.
+- Fall back to a safer response.
+- Escalate to human review.
+
+Avoid infinite repair loops. Track attempts.
+
+---
+
+## 18. Hallucination taxonomy
+
+Not all hallucinations have the same root cause.
+
+| Type | Example | Root cause | Mitigation |
+|---|---|---|---|
+| Missing evidence | Invents policy date | Retrieval/context gap | Refusal rule, better retrieval |
+| Contradiction | Says 60 days when doc says 90 | Prompt/model failure | Faithfulness eval, citations |
+| Citation mismatch | Correct answer, wrong source | Weak citation policy | Citation validation |
+| Tool hallucination | Claims API returned data never fetched | Tool trace missing | Require tool observations |
+| Format hallucination | Adds non-existent enum | Schema not enforced | Structured output validation |
+| Temporal hallucination | Uses stale model knowledge | No live data/tool | RAG/tools with freshness metadata |
+
+Interview phrase:
+
+> I first ask whether the answer was unsupported because the right evidence was unavailable, because retrieval failed, or because generation ignored available evidence. Each needs a different fix.
+
+---
+
+## 19. Security foundations
+
+### Threats
+
+- Prompt injection.
+- Data leakage through retrieval.
+- Data leakage through logs/traces.
+- Tool abuse.
+- Overbroad provider data sharing.
+- Cache cross-contamination.
+- Evaluation datasets containing sensitive production data.
+
+### Controls
+
+```mermaid
+flowchart TD
+  A[AuthN/AuthZ] --> B[Authorized retrieval]
+  B --> C[Prompt data minimization]
+  C --> D[Tool least privilege]
+  D --> E[Output validation]
+  E --> F[Redacted telemetry]
+  F --> G[Audit and eval]
+```
+
+Security principle:
+
+> The prompt can request safe behavior, but security must be enforced outside the model.
+
+---
+
+## 20. Additional interview drills
+
+### Q: How do you design a model abstraction?
+
+Expose application-level capabilities rather than provider-specific details: chat, stream, embed, structured output, tool call support, token counting, and cost metadata. Keep provider-specific options accessible but isolated.
+
+### Q: What is context engineering?
+
+It is selecting, ordering, compressing, and validating the information passed to a model: instructions, history, retrieved docs, tool results, and user state.
+
+### Q: Why can long context still fail?
+
+The model may miss details, irrelevant context can distract, costs and latency rise, and access-control mistakes become more dangerous. Retrieval and summarization still matter.
+
+### Q: How do you handle malformed JSON?
+
+Validate, retry with a repair prompt or provider structured output, cap retry attempts, and fall back or escalate if the response remains invalid.
+
+### Q: What belongs in code rather than the prompt?
+
+Authorization, rate limits, irreversible business rules, schema validation, secret handling, final side-effect execution, and audit logging.
+

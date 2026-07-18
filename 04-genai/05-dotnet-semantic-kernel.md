@@ -390,3 +390,357 @@ Plugins are normal C# functions described so the kernel/model can invoke them. T
 
 Ingest documents, chunk and embed them, store vectors with metadata, retrieve authorized chunks for the user's query, format context into an SK prompt, generate an answer, validate citations, and return answer plus sources.
 
+---
+
+## 11. Semantic Kernel architecture in ASP.NET Core
+
+For production, wrap SK behind application services instead of calling it directly from controllers.
+
+```mermaid
+flowchart TD
+  C[Controller/Minimal API] --> A[Application service]
+  A --> P[Prompt/version service]
+  A --> K[Semantic Kernel]
+  A --> R[RAG service]
+  A --> G[Guardrail service]
+  A --> O[Telemetry]
+  K --> L[LLM provider]
+  K --> Plugins[Plugins]
+  Plugins --> Domain[Domain services]
+```
+
+### Recommended responsibilities
+
+| Component | Responsibility |
+|---|---|
+| Controller | Auth, request DTO, cancellation token, HTTP response |
+| Application service | Orchestration, budgets, validation, error handling |
+| Kernel | Model connector and plugin invocation |
+| Plugin | Thin adapter exposing safe functions |
+| Domain service | Authorization, business rules, data access |
+| RAG service | Retrieval, context packing, citations |
+| Telemetry service | Traces, metrics, audit logs |
+
+Avoid putting business rules only in plugin descriptions. Descriptions help the model choose tools; they do not enforce policy.
+
+---
+
+## 12. Configuration and provider abstraction
+
+Use strongly typed options.
+
+```csharp
+public sealed class AiOptions
+{
+    public string ChatModel { get; init; } = "";
+    public string EmbeddingModel { get; init; } = "";
+    public int MaxInputTokens { get; init; } = 24000;
+    public int MaxOutputTokens { get; init; } = 2000;
+    public double Temperature { get; init; } = 0.2;
+}
+```
+
+Register:
+
+```csharp
+builder.Services.Configure<AiOptions>(
+    builder.Configuration.GetSection("AI"));
+```
+
+### Provider abstraction guideline
+
+Keep app code focused on capabilities:
+
+- chat completion
+- streaming chat
+- embeddings
+- structured output
+- tool/plugin invocation
+- token/cost accounting
+
+Provider-specific settings should be isolated in infrastructure code.
+
+---
+
+## 13. Plugin design in enterprise apps
+
+Plugins should delegate to authorized services.
+
+```csharp
+public sealed class InvoicePlugin
+{
+    private readonly IInvoiceService _invoiceService;
+    private readonly IUserContext _userContext;
+
+    public InvoicePlugin(IInvoiceService invoiceService, IUserContext userContext)
+    {
+        _invoiceService = invoiceService;
+        _userContext = userContext;
+    }
+
+    [KernelFunction]
+    [Description("Read invoice payment status for an authorized customer invoice.")]
+    public async Task<string> GetInvoiceStatusAsync(
+        [Description("Invoice ID such as INV-1234")] string invoiceId,
+        CancellationToken cancellationToken)
+    {
+        var invoice = await _invoiceService.GetAuthorizedInvoiceAsync(
+            _userContext.UserId,
+            invoiceId,
+            cancellationToken);
+
+        return $"Invoice {invoice.Id} is {invoice.Status} with balance {invoice.Balance:C}.";
+    }
+}
+```
+
+### Plugin safety checklist
+
+- [ ] Function is narrow.
+- [ ] Parameters are typed and described.
+- [ ] Domain service enforces authZ.
+- [ ] Side effects require explicit approval.
+- [ ] Cancellation token is honored.
+- [ ] Errors are sanitized.
+- [ ] Invocation is logged with request ID.
+
+---
+
+## 14. RAG implementation details in .NET
+
+### Context packing record
+
+```csharp
+public sealed record RagContextChunk(
+    string ChunkId,
+    string Title,
+    string Url,
+    string Text,
+    double Score,
+    IReadOnlyDictionary<string, string> Metadata);
+```
+
+### Prompt context formatter
+
+```csharp
+public static string FormatContext(IEnumerable<RagContextChunk> chunks)
+{
+    var builder = new StringBuilder();
+
+    foreach (var chunk in chunks)
+    {
+        builder.AppendLine($"[{chunk.ChunkId}]");
+        builder.AppendLine($"Title: {chunk.Title}");
+        builder.AppendLine($"URL: {chunk.Url}");
+        builder.AppendLine("Text:");
+        builder.AppendLine(chunk.Text);
+        builder.AppendLine();
+    }
+
+    return builder.ToString();
+}
+```
+
+### Citation validation
+
+```csharp
+public static IReadOnlyList<string> FindUnknownCitations(
+    string answer,
+    IReadOnlySet<string> retrievedChunkIds)
+{
+    var matches = Regex.Matches(answer, @"\[([A-Za-z0-9_.:#-]+)\]");
+
+    return matches
+        .Select(match => match.Groups[1].Value)
+        .Where(id => !retrievedChunkIds.Contains(id))
+        .Distinct()
+        .Order()
+        .ToArray();
+}
+```
+
+Validate before returning source cards as trusted citations.
+
+---
+
+## 15. Streaming implementation details
+
+### Server-Sent Events with cancellation
+
+```csharp
+[HttpPost("stream")]
+public async Task StreamAsync([FromBody] ChatRequest request, CancellationToken ct)
+{
+    Response.Headers.CacheControl = "no-cache";
+    Response.Headers.Connection = "keep-alive";
+    Response.ContentType = "text/event-stream";
+
+    await foreach (var chunk in _chatService.StreamAsync(request.Message, ct))
+    {
+        var payload = JsonSerializer.Serialize(new { type = "delta", text = chunk });
+        await Response.WriteAsync($"data: {payload}\n\n", ct);
+        await Response.Body.FlushAsync(ct);
+    }
+
+    await Response.WriteAsync("event: done\ndata: {}\n\n", ct);
+    await Response.Body.FlushAsync(ct);
+}
+```
+
+### Streaming pitfalls
+
+- Client disconnect not propagated to provider.
+- Exceptions after partial output not represented in UI.
+- Citations shown before validation.
+- PII logged token-by-token.
+- Reverse proxy buffering disables streaming.
+
+For nginx/proxies/CDNs, verify buffering and idle timeout settings.
+
+---
+
+## 16. Observability with .NET
+
+Use structured logs and OpenTelemetry-style spans.
+
+```csharp
+using var activity = _activitySource.StartActivity("ai.chat");
+activity?.SetTag("ai.model", options.ChatModel);
+activity?.SetTag("ai.prompt_version", promptVersion);
+activity?.SetTag("tenant.id", tenantId);
+```
+
+Log per request:
+
+- request ID / trace ID
+- tenant/user hash
+- prompt version
+- model/provider
+- token counts
+- retrieval chunk IDs and scores
+- plugin/function calls
+- latency by stage
+- validation failures
+- user feedback
+
+Redact:
+
+- secrets
+- access tokens
+- raw PII
+- sensitive document text unless explicitly sampled under policy
+
+---
+
+## 17. Cost controls in ASP.NET Core
+
+### Middleware/service-level controls
+
+- Per-user and per-tenant rate limits.
+- Request size limits.
+- Token budget validation.
+- Output token caps.
+- Cache stable responses.
+- Use smaller models for classification.
+- Queue heavy background tasks.
+
+### Example budget record
+
+```csharp
+public sealed record AiBudget(
+    int MaxHistoryTokens,
+    int MaxRetrievedContextTokens,
+    int MaxOutputTokens,
+    decimal MaxEstimatedCostUsd);
+```
+
+Budget decisions should be visible in logs:
+
+```text
+request_id=abc prompt_tokens=8120 context_tokens=5400 max_output=1200 estimated_cost=0.0062
+```
+
+---
+
+## 18. Testing strategy for .NET GenAI
+
+### Unit tests
+
+- Prompt builders.
+- Context formatters.
+- Citation validators.
+- Plugin argument validation.
+- Token budget logic.
+- SSE event formatting.
+
+### Integration tests
+
+- RAG service with test vector store.
+- Plugin authorization behavior.
+- Streaming endpoint cancellation.
+- Provider client wrapper with mocked responses.
+
+### Evaluation tests
+
+Run golden datasets separately from normal unit tests because they may call model providers and be slower/non-deterministic.
+
+```mermaid
+flowchart TD
+  A[Unit tests] --> B[Integration tests]
+  B --> C[Offline eval suite]
+  C --> D[Canary telemetry]
+```
+
+---
+
+## 19. .NET + Python hybrid pattern
+
+Many enterprises use ASP.NET Core for product APIs and Python for advanced AI orchestration.
+
+```mermaid
+flowchart LR
+  UI[SPA] --> API[ASP.NET Core API]
+  API --> Auth[Auth/domain services]
+  API --> AI[Python LangGraph service]
+  AI --> LLM[Model provider]
+  AI --> Vector[(Vector DB)]
+  API --> Audit[(Audit logs)]
+```
+
+Use this when:
+
+- LangGraph/Python ecosystem is needed.
+- Data science team owns AI workflows.
+- You want independent AI service deployment.
+
+Keep:
+
+- Auth decisions in the API/domain layer.
+- Tenant scope passed explicitly.
+- Audit logs correlated across services.
+- DTO contracts versioned.
+
+---
+
+## 20. Additional interview questions
+
+### Q: How should plugins access business data?
+
+Through application/domain services that enforce authorization and business rules. Plugins should be thin adapters, not bypasses around the domain layer.
+
+### Q: How do you test streaming?
+
+Test event formatting, cancellation propagation, provider error handling, proxy buffering behavior, and UI handling of partial responses.
+
+### Q: How do you prevent cross-tenant leakage in a .NET RAG app?
+
+Resolve tenant/user scope in the API, apply filters in retrieval, include tenant/ACL in cache keys, validate citations are authorized, and redact logs/traces.
+
+### Q: What belongs in middleware vs AI service?
+
+Middleware handles HTTP-level concerns like auth, rate limits, request size, correlation IDs, and cancellation. The AI service handles prompt assembly, retrieval, model calls, validation, and eval hooks.
+
+### Q: When would you split AI into a Python service?
+
+When advanced Python AI libraries, LangGraph workflows, data-science ownership, or independent scaling outweigh the operational simplicity of staying entirely in .NET.
+

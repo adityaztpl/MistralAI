@@ -519,3 +519,282 @@ The real code examples in `examples/01-rag` add embedding providers and hybrid r
 - Faithfulness is measured against retrieved context, while answer correctness may require external ground truth.
 - Fine-tuning and RAG are complementary: tune behavior, retrieve knowledge.
 
+---
+
+## 14. Advanced RAG architectures
+
+### Naive RAG
+
+```text
+embed query -> vector search top k -> prompt -> answer
+```
+
+Good for prototypes, but weak for:
+
+- Follow-up questions.
+- Exact identifiers.
+- Ambiguous user intent.
+- Large multi-tenant corpora.
+- Citation quality.
+- Missing evidence detection.
+
+### Production RAG
+
+```mermaid
+flowchart TD
+  U[User question] --> A[Auth and tenant scope]
+  A --> Q[Query rewrite/classification]
+  Q --> H[Hybrid retrieval]
+  H --> F[Metadata/security filters]
+  F --> R[Reranker]
+  R --> C[Context packer]
+  C --> G[Grounded generation]
+  G --> V[Citation/schema validation]
+  V --> E[Eval/trace/feedback]
+```
+
+### Agentic RAG
+
+Agentic RAG adds loops:
+
+- Grade retrieved documents.
+- Rewrite query if context is weak.
+- Retrieve from another source.
+- Validate answer faithfulness.
+- Fall back or ask a clarifying question.
+
+Use it when retrieval failures are common and latency budget allows multiple calls.
+
+---
+
+## 15. Query understanding
+
+Retrieval quality often starts before vector search.
+
+### Query classification
+
+Classify the user request:
+
+| Query type | Retrieval behavior |
+|---|---|
+| Factual docs question | RAG over documentation |
+| Account-specific question | Tool/API lookup |
+| Exact ID/error code | Keyword or hybrid search |
+| Ambiguous follow-up | Rewrite using chat history |
+| Unsupported domain | Refuse or route elsewhere |
+
+### Standalone question rewriting
+
+```text
+History:
+User: How do I create a service token?
+Assistant: ...
+User: How often do I rotate it?
+
+Rewrite:
+How often should service tokens be rotated?
+```
+
+Rules:
+
+- Preserve user intent.
+- Do not answer while rewriting.
+- Do not add facts not present in history.
+- Include product names and identifiers exactly.
+
+### Query expansion
+
+Generate multiple search phrases to improve recall:
+
+```text
+User query: "old token still works"
+Expansions:
+- revoke old API key after rotation
+- disable stale service token
+- API key traffic verification before revoke
+```
+
+Expansion costs more and may increase noise. Evaluate it.
+
+---
+
+## 16. Context packing
+
+After retrieval/reranking, the system must decide what to place in the prompt.
+
+```mermaid
+flowchart LR
+  A[Ranked chunks] --> B[Deduplicate]
+  B --> C[Apply token budget]
+  C --> D[Order by relevance/source]
+  D --> E[Format with IDs]
+  E --> F[Prompt context]
+```
+
+### Packing strategies
+
+| Strategy | Use |
+|---|---|
+| Top-k only | Simple baseline |
+| Diversity/MMR | Avoid duplicate chunks |
+| Parent-child | Retrieve precise child, include broader parent |
+| Section grouping | Keep related chunks together |
+| Source balancing | Avoid one source crowding out others |
+| Freshness boost | Prioritize updated policy |
+
+### Context formatting
+
+Good:
+
+```text
+[security-api-keys#rotation]
+Title: API Key Security Policy
+URL: https://docs.example.com/security/api-keys
+Updated: 2026-07-01
+Text:
+API keys must be rotated every 90 days...
+```
+
+Bad:
+
+```text
+API keys rotate every 90 days...
+```
+
+Without IDs and metadata, citations and debugging become difficult.
+
+---
+
+## 17. Citation validation
+
+Citation validation can be partly deterministic.
+
+### Validation checks
+
+- Cited ID exists in retrieved context.
+- Cited ID was authorized for the user.
+- Cited quote appears in cited chunk.
+- Every factual paragraph has a citation.
+- Unsupported answers do not include fake citations.
+
+### Simple citation ID validation
+
+```python
+import re
+
+
+def validate_citation_ids(answer: str, retrieved_ids: set[str]) -> list[str]:
+    cited = set(re.findall(r"\[([A-Za-z0-9_.:#-]+)\]", answer))
+    return sorted(cited - retrieved_ids)
+```
+
+### Harder problem: claim support
+
+Checking whether a citation truly supports a claim may require:
+
+- Quote overlap.
+- Natural language inference model.
+- LLM judge.
+- Human review for high-risk domains.
+
+---
+
+## 18. Multi-tenant RAG
+
+Multi-tenant RAG is a security-critical architecture.
+
+```mermaid
+flowchart TD
+  A[Authenticated user] --> B[Resolve tenant/user ACL]
+  B --> C[Build retrieval filter]
+  C --> D[Search authorized corpus only]
+  D --> E[Generate with authorized chunks]
+  E --> F[Validate citations are authorized]
+```
+
+### Required metadata
+
+- `tenant_id`
+- `document_id`
+- `chunk_id`
+- `source_uri`
+- `acl_group_ids`
+- `visibility`
+- `document_version`
+- `updated_at`
+
+### Pitfalls
+
+- Shared cache without tenant/ACL in key.
+- Logging retrieved private chunks.
+- Filtering after generation.
+- Reusing few-shot examples from one tenant in another tenant's prompt.
+- Running evals on production private docs without redaction.
+
+---
+
+## 19. Freshness and incremental indexing
+
+RAG systems drift when source documents change but indexes do not.
+
+### Incremental indexing flow
+
+```mermaid
+flowchart LR
+  A[Source changed] --> B[Detect version/hash]
+  B --> C[Delete old chunks]
+  C --> D[Parse and chunk]
+  D --> E[Embed]
+  E --> F[Upsert index]
+  F --> G[Run smoke retrieval eval]
+```
+
+Track:
+
+- Source document hash.
+- Chunker version.
+- Embedding model/version.
+- Index version.
+- Last successful ingestion time.
+- Parse errors.
+
+If ingestion fails, alerts should fire before users discover stale answers.
+
+---
+
+## 20. RAG troubleshooting playbook
+
+| Symptom | Diagnose | Likely fix |
+|---|---|---|
+| "I don't know" for known answer | Did relevant chunk appear in top k? | Chunking/query rewrite/hybrid search |
+| Wrong answer with right context | Did prompt allow guessing? | Stronger grounded prompt, lower temp |
+| Citation points to irrelevant source | Does cited ID support claim? | Citation validation/judge |
+| Good semantic docs but missed error code | Was BM25 used? | Hybrid search |
+| Poor follow-up handling | Was query rewritten? | Standalone query generation |
+| Cross-tenant result | Filter metadata and cache key | Security fix before shipping |
+| Slow response | Trace retrieval/rerank/model stages | Tune top-k, cache, smaller model |
+
+---
+
+## 21. Additional RAG interview questions
+
+### Q: How do you choose top-k?
+
+Start with an eval set and tune for recall, precision, token budget, and latency. Larger top-k increases recall but can add noise and cost; reranking can retrieve broadly then pack narrowly.
+
+### Q: What is parent-child retrieval?
+
+Index small child chunks for precise matching, but include a larger parent section in the prompt so the model has enough context.
+
+### Q: Why use hybrid search?
+
+Vector search handles semantic similarity while keyword search handles exact identifiers, error codes, names, and rare terms. Hybrid improves recall across query types.
+
+### Q: How do you handle missing evidence?
+
+Prompt the model to refuse when context is insufficient, detect low retrieval confidence, validate citations, and optionally ask a clarifying question or route to human support.
+
+### Q: What makes RAG production-ready?
+
+Clean ingestion, metadata/ACL filters, hybrid retrieval, reranking where useful, context packing, grounded prompts, citation validation, evals, observability, freshness monitoring, and cost controls.
+
