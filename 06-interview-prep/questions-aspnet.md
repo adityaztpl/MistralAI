@@ -336,3 +336,115 @@ Always log prompt version with each request.
 - Citation validation result.
 - User feedback.
 
+---
+
+## 6. Advanced scenario questions
+
+### Q21: How would you design an ASP.NET Core endpoint for authenticated streaming chat?
+
+**Strong answer:** I would validate the bearer token before starting the response, set the response content type to `text/event-stream`, write structured events, flush after each event, and pass the request `CancellationToken` through retrieval and provider calls. If an error happens after the stream starts, I would emit an `error` event because the HTTP status code has already been sent.
+
+Key points:
+
+- Use backend provider credentials.
+- Auth and rate limits happen before stream starts.
+- Use structured events: metadata, delta, citation, usage, error, done.
+- Disable or account for proxy buffering.
+- Persist partial/canceled responses intentionally.
+
+### Q22: How would you implement tenant-safe document retrieval?
+
+**Strong answer:** The tenant ID comes from trusted auth claims/current-user context. Every document and chunk stores tenant metadata. SQL/vector queries include tenant and ACL filters before prompt assembly. I would add integration tests that seed two tenants and prove tenant A cannot retrieve tenant B chunks even when the query is semantically similar.
+
+Red flags:
+
+- Accepting tenant ID from request body.
+- Filtering after prompt assembly.
+- Trusting the model to ignore unauthorized data.
+
+### Q23: How would you structure a background ingestion worker?
+
+Use:
+
+- Durable job table or queue.
+- Worker picks queued jobs.
+- Mark running/completed/failed.
+- Parse source.
+- Chunk text.
+- Generate embeddings.
+- Upsert vectors with metadata.
+- Retry transient failures.
+- Move poison jobs to failed state with diagnostics.
+
+Interview trade-off:
+
+> A simple `BackgroundService` with a database-backed queue is explainable and good for a portfolio app. At larger scale, I would use a managed queue and horizontally scalable workers.
+
+### Q24: How do you handle provider timeouts and retries?
+
+- Set explicit `HttpClient` timeout.
+- Pass cancellation tokens.
+- Retry only transient failures.
+- Do not blindly retry long generation after partial stream.
+- Use circuit breaker for repeated provider failures.
+- Surface graceful errors to frontend.
+- Log provider request IDs if available.
+
+### Q25: What tests would you add for a GenAI ASP.NET API?
+
+- Unit test prompt builder.
+- Unit test citation validation.
+- Unit test current-user claim mapping.
+- Integration test auth required.
+- Integration test tenant isolation.
+- Integration test streaming content type/events.
+- Cancellation test for stream endpoint.
+- Contract test for provider client.
+- Eval test for golden RAG questions.
+
+### Q26: How would you use OpenTelemetry in this app?
+
+Trace spans:
+
+```text
+api.chat
+  auth.validate
+  db.load_conversation
+  embedding.query
+  vector.search
+  rerank
+  prompt.build
+  provider.chat
+  stream.write
+  db.save_message
+```
+
+Metrics:
+
+- Request count.
+- P95 latency.
+- Time to first token.
+- Tokens per request.
+- Provider error rate.
+- Retrieval empty-result rate.
+- Cost per tenant.
+
+### Q27: How do you keep controllers thin without overengineering?
+
+Controllers should handle HTTP shape:
+
+- Route/body binding.
+- Auth policies.
+- Status code mapping.
+- Cancellation token.
+
+Application services handle use cases:
+
+- Validation beyond simple DTO shape.
+- Tenant-scoped queries.
+- Transactions.
+- RAG orchestration.
+- Tool execution.
+
+Avoid creating many layers that do nothing, but keep provider/database/model orchestration out of controllers.
+

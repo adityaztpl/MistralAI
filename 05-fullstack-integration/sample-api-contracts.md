@@ -464,3 +464,367 @@ export class RagClient {
 - Avoid exposing raw prompts or provider credentials.
 - Version contracts if clients depend on response shape.
 
+---
+
+## 13. Standard error contract
+
+Use Problem Details for normal JSON endpoints.
+
+```json
+{
+  "type": "https://httpstatuses.com/400",
+  "title": "Validation failed",
+  "status": 400,
+  "detail": "The request contains invalid fields.",
+  "instance": "/api/rag/query",
+  "requestId": "req-123",
+  "errors": {
+    "question": ["Question is required."]
+  }
+}
+```
+
+### Error status guide
+
+| Status | Meaning | Example |
+|---|---|---|
+| 400 | Invalid request shape | Missing question |
+| 401 | Not authenticated | Missing/expired token |
+| 403 | Authenticated but forbidden | Missing scope |
+| 404 | Resource not found or not visible | Document ID outside tenant |
+| 409 | Conflict | Ingestion already running |
+| 413 | Payload too large | File too large |
+| 415 | Unsupported media type | Unsupported upload type |
+| 422 | Semantically invalid | Invalid retrieval option combination |
+| 429 | Rate limited | Too many chat requests |
+| 499-style log only | Client canceled | Stop generation clicked |
+| 502/503 | Provider unavailable | LLM provider outage |
+| 504 | Timeout | Provider or retrieval timeout |
+
+### Streaming errors
+
+If the stream has not started, return a normal status code. If the stream has started, emit:
+
+```text
+event: error
+data: {"code":"provider_timeout","message":"The model provider timed out.","requestId":"req-123"}
+```
+
+---
+
+## 14. Auth and rate-limit headers
+
+### Request headers
+
+```http
+Authorization: Bearer <access-token>
+X-Correlation-ID: <optional-client-generated-id>
+```
+
+### Response headers
+
+```http
+X-Correlation-ID: req-123
+RateLimit-Limit: 20
+RateLimit-Remaining: 12
+RateLimit-Reset: 30
+```
+
+### Interview points
+
+- The token identifies user, tenant, scopes, and roles.
+- The API should not trust tenant IDs from request body for authorization.
+- Rate-limit headers let the frontend show helpful retry UI.
+- Correlation IDs help support teams connect UI errors to backend traces.
+
+---
+
+## 15. Versioning strategy
+
+For interview projects, path versioning is simple:
+
+```text
+/api/v1/rag/query
+/api/v1/chat/stream
+```
+
+For internal apps, you can also version specific AI behavior:
+
+```json
+{
+  "promptVersion": "rag-answer-v4",
+  "retrievalVersion": "hybrid-rerank-v2",
+  "contractVersion": "2026-07-01"
+}
+```
+
+### What to version
+
+- Public response shape.
+- Streaming event names/payloads.
+- Prompt template.
+- Retrieval strategy.
+- Embedding model.
+- Tool schemas.
+
+---
+
+## 16. Conversation endpoints
+
+### Create conversation
+
+```http
+POST /api/conversations
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+```json
+{
+  "title": "Security policy questions"
+}
+```
+
+Response:
+
+```json
+{
+  "conversationId": "conv-123",
+  "title": "Security policy questions",
+  "createdAt": "2026-07-17T20:00:00Z"
+}
+```
+
+### List conversations
+
+```http
+GET /api/conversations?cursor=abc&pageSize=20
+```
+
+```json
+{
+  "items": [
+    {
+      "conversationId": "conv-123",
+      "title": "Security policy questions",
+      "updatedAt": "2026-07-17T20:30:00Z",
+      "lastMessagePreview": "API keys must be rotated..."
+    }
+  ],
+  "nextCursor": "def"
+}
+```
+
+### Get messages
+
+```http
+GET /api/conversations/conv-123/messages
+```
+
+```json
+{
+  "items": [
+    {
+      "messageId": "msg-1",
+      "role": "user",
+      "content": "How often should API keys be rotated?",
+      "createdAt": "2026-07-17T20:29:00Z"
+    },
+    {
+      "messageId": "msg-2",
+      "role": "assistant",
+      "content": "API keys should be rotated every 90 days [doc-api-keys#chunk-1].",
+      "citations": [
+        {
+          "id": "doc-api-keys#chunk-1",
+          "title": "API Key Rotation Policy",
+          "url": "https://docs.example.com/security/api-keys",
+          "excerpt": "API keys must be rotated every 90 days."
+        }
+      ],
+      "status": "complete",
+      "createdAt": "2026-07-17T20:29:10Z"
+    }
+  ]
+}
+```
+
+---
+
+## 17. Document management endpoints
+
+### List documents
+
+```http
+GET /api/documents?collection=security&status=completed&pageSize=20
+```
+
+```json
+{
+  "items": [
+    {
+      "documentId": "doc-123",
+      "title": "API Key Rotation Policy",
+      "collection": "security",
+      "status": "completed",
+      "chunksIndexed": 42,
+      "uploadedAt": "2026-07-17T20:00:00Z",
+      "updatedAt": "2026-07-17T20:05:00Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+### Delete document
+
+```http
+DELETE /api/documents/doc-123
+```
+
+Response:
+
+```http
+204 No Content
+```
+
+Deletion requirements:
+
+- Delete or tombstone source document.
+- Delete derived chunks/vectors.
+- Preserve audit logs according to retention policy.
+- Do not break historical conversation display; citations may show "source deleted" if needed.
+
+---
+
+## 18. Ingestion job endpoints
+
+### Get job status
+
+```http
+GET /api/ingestion-jobs/job-456
+```
+
+```json
+{
+  "jobId": "job-456",
+  "documentId": "doc-123",
+  "status": "running",
+  "stage": "embedding",
+  "attempts": 1,
+  "chunksParsed": 42,
+  "chunksIndexed": 20,
+  "warnings": [],
+  "lastError": null,
+  "createdAt": "2026-07-17T20:00:00Z",
+  "updatedAt": "2026-07-17T20:03:00Z"
+}
+```
+
+### Retry failed job
+
+```http
+POST /api/ingestion-jobs/job-456/retry
+```
+
+Response:
+
+```json
+{
+  "jobId": "job-789",
+  "status": "queued"
+}
+```
+
+Authorization:
+
+- User must have access to the document.
+- Admin or document owner can retry.
+
+---
+
+## 19. Feedback endpoint expanded
+
+### Request
+
+```json
+{
+  "conversationId": "conv-123",
+  "messageId": "msg-456",
+  "rating": "thumbs_down",
+  "reason": "citation_not_relevant",
+  "comment": "The cited source does not mention the 90-day policy.",
+  "expectedAnswer": "The policy says keys rotate every 90 days."
+}
+```
+
+### Reason enum
+
+```yaml
+FeedbackReason:
+  enum:
+    - helpful
+    - wrong_answer
+    - citation_missing
+    - citation_not_relevant
+    - outdated
+    - too_slow
+    - unsafe
+    - other
+```
+
+### Why this matters
+
+Feedback should be tied to:
+
+- Prompt version.
+- Model version.
+- Retrieval strategy.
+- Retrieved chunk IDs.
+- User/tenant hash.
+- Latency and token usage.
+
+That makes feedback actionable instead of anecdotal.
+
+---
+
+## 20. Admin quality endpoint
+
+For internal/admin users:
+
+```http
+GET /api/admin/rag-quality?from=2026-07-01&to=2026-07-17
+```
+
+```json
+{
+  "totalQuestions": 1280,
+  "thumbsDownRate": 0.12,
+  "emptyRetrievalRate": 0.08,
+  "citationValidationFailureRate": 0.03,
+  "p95LatencyMs": 5200,
+  "averageCostUsd": 0.0042,
+  "topFailureReasons": [
+    { "reason": "citation_not_relevant", "count": 43 },
+    { "reason": "wrong_answer", "count": 38 }
+  ]
+}
+```
+
+This endpoint is not needed for a tiny demo, but describing it shows production thinking.
+
+---
+
+## 21. Contract checklist
+
+- [ ] Every endpoint has auth requirements.
+- [ ] Tenant comes from token/current user, not request body.
+- [ ] Request DTOs have length limits.
+- [ ] Responses include structured IDs for citations and messages.
+- [ ] Errors are consistent.
+- [ ] Streaming event names are documented.
+- [ ] Rate-limit behavior is documented.
+- [ ] Upload and ingestion are separate.
+- [ ] Feedback captures reason categories.
+- [ ] Admin metrics connect quality, latency, and cost.
+

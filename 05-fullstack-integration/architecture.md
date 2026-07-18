@@ -311,3 +311,276 @@ Log/measure:
 - Model provider abstraction is useful, but avoid hiding provider-specific capabilities you rely on.
 - Use smaller, cheaper models for routing/classification and stronger models for final synthesis if needed.
 
+---
+
+## 11. Reference implementation slices
+
+Use these slices to build the architecture incrementally. Each slice should be demoable and explainable.
+
+### Slice 1: Auth-ready API shell
+
+Deliver:
+
+- ASP.NET Core API with health endpoint.
+- Problem Details.
+- Correlation ID logging.
+- JWT bearer auth configuration or development current-user abstraction.
+- CORS restricted to local SPA origins.
+
+Interview explanation:
+
+> I start by making the API the trust boundary. Even before adding real AI calls, I want request validation, auth-ready current user context, consistent errors, and logging in place because those concerns affect every endpoint.
+
+### Slice 2: Notes CRUD + tenant filters
+
+Deliver:
+
+- `GET /api/notes`
+- `POST /api/notes`
+- `PUT /api/notes/{id}`
+- EF Core queries filtered by `currentUser.TenantId`.
+- Tests proving cross-tenant isolation.
+
+Interview explanation:
+
+> Tenant filtering is not a frontend concern. The server derives tenant context from validated auth claims and applies it in every data access path.
+
+### Slice 3: Ingestion pipeline
+
+Deliver:
+
+- Upload or note-indexing endpoint.
+- Source document record.
+- Durable ingestion job.
+- Background worker.
+- Parser/chunker.
+- Embedding call.
+- Vector upsert.
+
+Interview explanation:
+
+> Ingestion is asynchronous because parsing, chunking, and embeddings can be slow, fail independently, and need retries. The upload request should return quickly with a queued status.
+
+### Slice 4: RAG query
+
+Deliver:
+
+- Query embedding.
+- Tenant/ACL-filtered vector search.
+- Grounded prompt.
+- Model call.
+- Structured citations.
+- Usage logging.
+
+Interview explanation:
+
+> Retrieval is security-sensitive. The model only receives chunks that the backend already authorized. Citations come from retrieval metadata, not from parsing arbitrary model text.
+
+### Slice 5: Streaming chat
+
+Deliver:
+
+- `POST /api/chat/stream`.
+- Structured SSE-style events.
+- React/Angular parser.
+- Stop generation.
+- Partial error handling.
+
+Interview explanation:
+
+> Streaming is not only a UI feature. Cancellation must propagate from browser AbortController to ASP.NET cancellation token to provider call, and proxy buffering must be configured.
+
+### Slice 6: Evaluation and deployment readiness
+
+Deliver:
+
+- Golden question set.
+- Recall@k measurement.
+- Citation validation.
+- Feedback endpoint.
+- Deployment checklist.
+- Cost/latency dashboard plan.
+
+Interview explanation:
+
+> I treat prompt, model, chunking, and retrieval changes as behavior changes that need regression evaluation before rollout.
+
+---
+
+## 12. Data ownership and derived data
+
+Separate source data from derived retrieval data.
+
+| Data | Source of truth? | Can rebuild? | Examples |
+|---|---|---|---|
+| Note body | Yes | No | User-authored notes |
+| Uploaded file | Yes | No | PDF, Markdown, HTML |
+| Parsed text | Derived | Yes | Extracted page text |
+| Chunk | Derived | Yes | 800-token section |
+| Embedding | Derived | Yes | Vector for chunk |
+| Retrieval score | Derived per query | Yes | Similarity/rerank score |
+| Answer | Conversation record | Sometimes | Assistant response |
+
+### Why this matters
+
+- If chunking changes, rebuild chunks from source.
+- If embedding model changes, rebuild vectors from chunks/source.
+- If a user deletes a document, delete source and derived chunks/vectors.
+- If citations reference chunks, store enough metadata to resolve historical answers.
+
+---
+
+## 13. Tenant isolation patterns
+
+### Shared DB and shared vector index
+
+Most common for small/medium SaaS.
+
+Required controls:
+
+- Tenant ID column on every tenant-scoped row.
+- Tenant ID metadata on every vector.
+- Composite indexes with tenant ID.
+- Integration tests for cross-tenant reads.
+- Audit logs for retrieved chunk IDs.
+
+### Shared DB and per-tenant vector index
+
+Use when:
+
+- Tenants have large datasets.
+- Vector-store filtering is weak.
+- Isolation requirements are stronger.
+
+Trade-off:
+
+- Better isolation and potentially faster search per tenant.
+- More indexes to create, monitor, and rebuild.
+
+### Dedicated tenant database/index
+
+Use when:
+
+- Enterprise contract requires isolation.
+- Data residency differs per tenant.
+- Tenant scale justifies operational overhead.
+
+Trade-off:
+
+- Strong isolation.
+- More complex migrations, monitoring, and cost allocation.
+
+---
+
+## 14. Prompt and model versioning
+
+Every AI response should be explainable later.
+
+Record:
+
+- Prompt template name/version.
+- Model name/version.
+- Temperature/top-p.
+- Retrieval settings.
+- Chunk IDs and scores.
+- Tool names called.
+- Token counts.
+- Provider request ID if available.
+
+### Example metadata
+
+```json
+{
+  "promptVersion": "rag-answer-v4",
+  "model": "mistral-large-latest",
+  "temperature": 0.2,
+  "retrieval": {
+    "topK": 8,
+    "hybrid": true,
+    "rerank": true,
+    "chunkIds": ["doc-1#chunk-3", "doc-2#chunk-1"]
+  }
+}
+```
+
+### Interview talking point
+
+> If a user reports a bad answer, I need to reconstruct which prompt, model, retrieval settings, and chunks produced it. Without versioning and metadata, GenAI debugging becomes guesswork.
+
+---
+
+## 15. Frontend state model for AI chat
+
+Recommended message state:
+
+```ts
+type MessageStatus = "pending" | "streaming" | "complete" | "failed" | "canceled";
+
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  status: MessageStatus;
+  citations: Citation[];
+  requestId?: string;
+  error?: string;
+  usage?: Usage;
+};
+```
+
+### State transitions
+
+```text
+User submits
+  -> append user message complete
+  -> append assistant message streaming
+  -> delta events append content
+  -> citation events append sources
+  -> done marks complete
+  -> error marks failed
+  -> abort marks canceled
+```
+
+### UX details that show maturity
+
+- Disable send while active request is streaming or allow queue explicitly.
+- Preserve partial assistant output on cancellation.
+- Show source panel separately from answer text.
+- Keep request ID visible in error details.
+- Let users retry from the same prompt.
+- Avoid re-rendering all markdown on every token.
+
+---
+
+## 16. Production failure-mode map
+
+| Failure | Layer | Symptom | Mitigation |
+|---|---|---|---|
+| Token expired | Auth/API | 401 or stream rejected | Refresh/re-auth flow |
+| Missing tenant filter | Retrieval | Cross-tenant leakage | Tests, query conventions, audits |
+| Prompt injection | RAG/tooling | Tool misuse or instruction override | Treat docs as data, validate tools |
+| Provider timeout | AI provider | Partial/no answer | Timeout, error event, retry policy |
+| Proxy buffering | Deployment | Tokens arrive all at once | Disable buffering/timeouts |
+| Bad chunking | Retrieval | Wrong/missing context | Eval, chunk tuning, metadata |
+| Dense search misses exact code | Retrieval | Error IDs not found | Hybrid/BM25/exact boost |
+| Citation hallucination | Generation | Nonexistent source IDs | Structured citations and validation |
+| Cost spike | Operations | Spend alert | Quotas, token caps, rate limits |
+| UI markdown XSS | Frontend | Unsafe rendering | Sanitize, disable raw HTML |
+
+---
+
+## 17. Architecture review checklist
+
+Before presenting this design, verify:
+
+- [ ] Browser never receives provider secrets.
+- [ ] Auth flow is explicit.
+- [ ] Tenant and ACL filters happen before prompt assembly.
+- [ ] Ingestion is asynchronous and retryable.
+- [ ] Vector records include source and auth metadata.
+- [ ] Streaming includes cancellation and error events.
+- [ ] Citations are structured.
+- [ ] Evaluation is included.
+- [ ] Deployment covers secrets, proxy streaming, rate limits, and observability.
+- [ ] Cost controls are discussed.
+

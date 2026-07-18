@@ -268,3 +268,105 @@ Practice these out loud:
 4. Optimize a chat UI that becomes slow after 500 messages.
 5. Build a feedback loop for thumbs-up/thumbs-down answer quality.
 
+---
+
+## 7. Advanced frontend scenarios
+
+### Q19: How would you model chat message state for streaming?
+
+Use explicit message status:
+
+```ts
+type MessageStatus = "pending" | "streaming" | "complete" | "failed" | "canceled";
+
+type Message = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  status: MessageStatus;
+  citations: Citation[];
+  error?: string;
+  requestId?: string;
+};
+```
+
+State transitions:
+
+```text
+submit -> append user message -> append assistant streaming placeholder
+delta -> append to assistant content
+citation -> append citation
+done -> mark complete
+error -> mark failed with partial content
+abort -> mark canceled
+```
+
+### Q20: How do you parse SSE-style events safely?
+
+Key points:
+
+- Read from `ReadableStream`.
+- Keep a buffer because frames can split across chunks.
+- Split on blank lines.
+- Parse `event:` and `data:` lines.
+- Treat unknown events as no-ops for forward compatibility.
+- Catch JSON parse errors and mark stream failed.
+
+### Q21: How do you prevent chat streaming from making the UI slow?
+
+- Update only the active assistant message.
+- Batch deltas with `requestAnimationFrame`.
+- Render plain text while streaming, markdown after completion.
+- Memoize message components.
+- Virtualize long conversation lists.
+- Avoid putting fast-changing token state in global context.
+
+### Q22: How should the frontend handle rate limits?
+
+For 429:
+
+- Read `RateLimit-Reset` or `Retry-After`.
+- Disable submit temporarily.
+- Show user-friendly wait message.
+- Do not retry non-idempotent operations automatically.
+- Preserve draft message.
+
+### Q23: How do you handle auth expiry during API calls?
+
+- Centralize API client error handling.
+- On 401, try token refresh if supported.
+- If refresh fails, redirect to login.
+- Preserve unsent drafts where possible.
+- Avoid infinite refresh loops.
+
+### Q24: How do you test a streaming chat component?
+
+Tests:
+
+- Parser handles split frames.
+- Parser handles multiple frames in one chunk.
+- Delta updates active assistant message.
+- Citation event renders source.
+- Error event preserves partial content.
+- Stop button calls abort.
+- Component aborts on unmount.
+
+### Q25: React vs Angular for this project?
+
+Balanced answer:
+
+> Both can build the app well. React gives a flexible component and hook model with a large ecosystem. Angular gives an opinionated framework with dependency injection, routing, forms, and RxJS patterns built in. The better choice depends on team experience, existing codebase, and product constraints.
+
+### Q26: What frontend security issues are specific to GenAI output?
+
+- Model output is untrusted.
+- Markdown rendering can introduce XSS if raw HTML is allowed.
+- Links may be malicious or hallucinated.
+- Citations should come from structured backend data.
+- Do not expose provider keys or hidden system prompts.
+- Do not make authorization decisions in the client.
+
+Strong phrase:
+
+> I treat model output like user-generated content: render with safe defaults, sanitize HTML, validate links/previews, and never trust it to drive privileged actions.
+
