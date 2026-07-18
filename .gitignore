@@ -4,8 +4,17 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+dist/
+build/
+.eggs/
+
+# Env / secrets
 .env
 .env.*
+.env.local
+*.pem
+secrets.json
+appsettings.Development.json
 
 # .NET
 bin/
@@ -15,10 +24,17 @@ obj/
 
 # Node / frontend
 node_modules/
-dist/
 .angular/
 .next/
 .vite/
+
+# Outputs & caches
+outputs/*
+!outputs/.gitkeep
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # IDE / OS
 .idea/
@@ -26,7 +42,10 @@ dist/
 *.swp
 .DS_Store
 
-# Secrets / local
-*.pem
-secrets.json
-appsettings.Development.json
+# CrewAI
+.crewai/
+storage/
+
+# Keep committed sample outputs; ignore ad-hoc runs
+!examples/
+!examples/**
