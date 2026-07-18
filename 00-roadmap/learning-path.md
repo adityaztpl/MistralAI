@@ -837,3 +837,169 @@ This phase extends the original 24-week path with sections `07` through `16`. Us
 - [ ] Can explain each security lab's broken pattern and hardened fix.
 - [ ] Can present the Instagram capstone as a product, not only a script.
 
+---
+
+## Phase 9: Java, Spring Boot, SQL, and AWS Fullstack Specialization
+
+Pair with section `17-spring-boot` for Spring Boot depth (basics → AWS). This phase adds section `18-java-fullstack` for candidates targeting Java fullstack roles. Use it after you understand the existing frontend/API fundamentals, or run it as a parallel specialization if your target interviews emphasize Spring Boot, React or Angular, relational databases, Docker, and AWS.
+
+### Week 35: Spring Boot API architecture and REST design
+
+**Read**
+
+- `18-java-fullstack/README.md`
+- `18-java-fullstack/01-architecture.md`
+- `18-java-fullstack/02-spring-api-design.md`
+
+**Goals**
+
+- Explain layered and clean architecture in a Spring Boot codebase.
+- Design versioned REST endpoints with DTOs, validation, pagination, and Problem Details.
+- Understand SPA-to-API auth flow and CORS.
+- Practice drawing the Spring Boot + SPA + database request path.
+
+**Build**
+
+- Create a Spring Boot Product Catalog API skeleton.
+- Add `/actuator/health`.
+- Add `GET /api/v1/products` and `POST /api/v1/products`.
+- Add request DTO validation and a `@RestControllerAdvice` Problem Details handler.
+
+**Interview focus**
+
+- Controller vs service vs repository responsibilities.
+- Why DTOs protect API contracts.
+- Authentication vs authorization.
+- Problem Details error shape.
+- Transaction boundary placement.
+
+---
+
+### Week 36: React or Angular client against Spring
+
+**Read**
+
+- `18-java-fullstack/03-react-with-spring.md`
+- `18-java-fullstack/04-angular-with-spring.md`
+
+**Goals**
+
+- Choose React or Angular as the primary client for the Java track.
+- Implement login UX and protected routes.
+- Centralize API calls and auth headers.
+- Map Spring validation errors onto frontend forms.
+
+**Build**
+
+- React path: Vite React TypeScript app with `AuthContext`, API client, protected routes, and product form.
+- Angular path: standalone Angular app with `AuthService`, functional interceptor, guard, product service, and reactive form.
+- Add loading, empty, and error states for the product list.
+
+**Code**
+
+- `18-java-fullstack/examples/react-client/AuthContext.tsx`
+- `18-java-fullstack/examples/react-client/apiClient.ts`
+- `18-java-fullstack/examples/angular-client/auth.interceptor.ts`
+- `18-java-fullstack/examples/angular-client/auth.guard.ts`
+
+**Interview focus**
+
+- Why route guards are UX, not security.
+- Token storage trade-offs.
+- CORS preflight debugging.
+- Mapping Problem Details to form fields.
+
+---
+
+### Week 37: PostgreSQL, SQL Server, Flyway, and local Docker
+
+**Read**
+
+- `18-java-fullstack/05-mssql-postgresql.md`
+- `18-java-fullstack/07-docker-local-dev.md`
+
+**Goals**
+
+- Design a relational schema from access patterns.
+- Compare PostgreSQL and SQL Server in Spring Boot.
+- Write Flyway migrations for both engines.
+- Run local dependencies with Docker Compose.
+
+**Build**
+
+- Add users, categories, products, and audit tables.
+- Add owner-scoped indexes and SKU uniqueness.
+- Configure `postgres` and optional `mssql` Spring profiles.
+- Run API + PostgreSQL with Docker Compose.
+
+**Code**
+
+- `18-java-fullstack/examples/flyway/V1__products_postgres.sql`
+- `18-java-fullstack/examples/flyway/V1__products_mssql.sql`
+- `18-java-fullstack/examples/docker/docker-compose.yml`
+- `18-java-fullstack/examples/docker/api.Dockerfile`
+
+**Interview focus**
+
+- Index design from query patterns.
+- Flyway vs Hibernate `ddl-auto`.
+- Safe migration strategy.
+- PostgreSQL vs SQL Server dialect differences.
+- Testcontainers vs Docker Compose.
+
+---
+
+### Week 38: End-to-end Product Catalog + Auth and AWS deployment
+
+**Read**
+
+- `18-java-fullstack/06-aws-fullstack-deploy.md`
+- `18-java-fullstack/08-end-to-end-tutorial.md`
+- `18-java-fullstack/09-interview-and-system-design.md`
+- `18-java-fullstack/10-cheatsheet.md`
+
+**Goals**
+
+- Complete a vertical slice from database to API to SPA.
+- Explain deployment to AWS.
+- Practice system design and debugging scenarios.
+- Prepare a portfolio README and demo script.
+
+**Build**
+
+- Implement register/login.
+- Implement product CRUD with ownership checks.
+- Add integration tests for auth, validation, duplicate SKU, and owner isolation.
+- Containerize API.
+- Write AWS deployment notes for S3 + CloudFront, ALB + ECS/Fargate or Elastic Beanstalk, RDS, Secrets Manager, CloudWatch, IAM, and GitHub Actions.
+
+**Code**
+
+- `18-java-fullstack/examples/spring/ProductService.java`
+- `18-java-fullstack/examples/spring/AuthController.java`
+- `18-java-fullstack/examples/aws/github-actions-deploy.yml`
+- `18-java-fullstack/examples/aws/task-definition.ecs.json`
+
+**Interview focus**
+
+- Fullstack request lifecycle.
+- JWT/Cognito/BFF trade-offs.
+- AWS deployment topology.
+- ECS health check debugging.
+- Database migration and rollback strategy.
+- Production hardening roadmap.
+
+---
+
+### Java fullstack readiness checklist
+
+- [ ] Can draw Spring Boot + React/Angular + PostgreSQL/SQL Server + AWS architecture.
+- [ ] Can design REST endpoints with DTOs, validation, Problem Details, pagination, and versioning.
+- [ ] Can implement SPA auth flow and discuss secure token storage alternatives.
+- [ ] Can map backend validation errors onto React or Angular forms.
+- [ ] Can design relational tables, constraints, and indexes for product/notes domains.
+- [ ] Can explain Flyway migration discipline and expand/contract changes.
+- [ ] Can run the stack locally with Docker Compose.
+- [ ] Can describe ECS/Fargate and Elastic Beanstalk deployment trade-offs.
+- [ ] Can use Secrets Manager, CloudWatch, IAM, S3, CloudFront, ALB, RDS, and GitHub Actions in a coherent deployment plan.
+- [ ] Can answer Java fullstack system design prompts with requirements, APIs, data, auth, operations, risks, and tests.

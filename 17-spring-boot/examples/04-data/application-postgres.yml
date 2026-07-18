@@ -1,0 +1,42 @@
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:inventory}
+    username: ${DB_USERNAME:inventory_app}
+    password: ${DB_PASSWORD:change-me-locally}
+    hikari:
+      pool-name: inventory-postgres-pool
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: 2000
+      validation-timeout: 1000
+      idle-timeout: 600000
+      max-lifetime: 1740000
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+        default_batch_fetch_size: 50
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/postgres,classpath:db/migration/common
+    baseline-on-migrate: false
+    connect-retries: 10
+
+management:
+  health:
+    db:
+      enabled: true
+
+app:
+  data:
+    vendor: postgresql
+    json-column-type: jsonb
+    keyset-pagination: true

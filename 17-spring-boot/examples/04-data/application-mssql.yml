@@ -1,0 +1,42 @@
+spring:
+  config:
+    activate:
+      on-profile: mssql
+  datasource:
+    url: jdbc:sqlserver://${DB_HOST:localhost}:${DB_PORT:1433};databaseName=${DB_NAME:inventory};encrypt=${DB_ENCRYPT:true};trustServerCertificate=${DB_TRUST_CERT:false}
+    username: ${DB_USERNAME:inventory_app}
+    password: ${DB_PASSWORD:change-me-locally}
+    hikari:
+      pool-name: inventory-mssql-pool
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: 2000
+      validation-timeout: 1000
+      idle-timeout: 600000
+      max-lifetime: 1740000
+  jpa:
+    database-platform: org.hibernate.dialect.SQLServerDialect
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          time_zone: UTC
+        default_batch_fetch_size: 50
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/mssql,classpath:db/migration/common
+    baseline-on-migrate: false
+    connect-retries: 10
+
+management:
+  health:
+    db:
+      enabled: true
+
+app:
+  data:
+    vendor: mssql
+    json-column-type: nvarchar(max)
+    keyset-pagination: true

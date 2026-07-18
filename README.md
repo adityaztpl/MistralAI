@@ -19,6 +19,7 @@ Interview and hands-on prep from **basic → advanced** covering:
 | Frontend | Angular (standalone + signals) |
 | Frontend | React (hooks + concurrent features) |
 | Gen AI | RAG, LangChain, LangGraph, Semantic Kernel |
+| Java Fullstack | Spring Boot, React, Angular, PostgreSQL, SQL Server, AWS |
 | Practice | Take-home kits, debugging playbooks, data platform drills |
 
 Start here → follow the roadmap → practice with examples → drill interview questions.
@@ -50,6 +51,8 @@ Start here → follow the roadmap → practice with examples → drill interview
 14-whiteboard-pack/          System design canvases
 15-security-lab/             Sandbox security lab: broken → exploit reasoning → harden
 16-capstone-instagram/       Full-stack Instagram creator capstone over CrewAI/Mistral
+17-spring-boot/              Spring Boot 3 interview and production prep
+18-java-fullstack/           Java Spring Boot + React/Angular + SQL + AWS fullstack prep
 projects/                    Standalone app docs (Instagram creator)
 src/                         Instagram content creator package
 ```
@@ -109,7 +112,7 @@ src/                         Instagram content creator package
 - [Gen AI questions](06-interview-prep/questions-genai.md)
 - [AI app system design](06-interview-prep/system-design-ai-apps.md)
 
-### 7-16. Advanced production, practice, security, and capstone modules
+### 7-18. Advanced production, practice, security, capstone, and Java fullstack modules
 
 | Section | README | Interview outcome |
 |---------|--------|-------------------|
@@ -123,6 +126,8 @@ src/                         Instagram content creator package
 | 14. Whiteboard pack | [Section README](14-whiteboard-pack/README.md) | Practice full-stack + GenAI system-design canvases |
 | 15. Security lab | [Section README](15-security-lab/README.md) | Review vulnerable samples, explain risk safely, and harden implementations |
 | 16. Instagram capstone | [Section README](16-capstone-instagram/README.md) | Wrap the CrewAI/Mistral app in a full-stack SaaS-style product |
+| 17. Spring Boot | [Section README](17-spring-boot/README.md) | Prepare Spring Boot 3 fundamentals, security, data, AWS integrations, and interview questions |
+| 18. Java fullstack | [Section README](18-java-fullstack/README.md) | Build and explain Spring Boot APIs with React/Angular clients, PostgreSQL/SQL Server, Docker, and AWS deployment |
 
 ### 9. Take-home kits
 
@@ -160,6 +165,8 @@ Gen AI foundations → RAG → LangChain → LangGraph
 Wire ASP.NET + SPA + RAG (streaming chat)
        ↓
 Advanced backend/frontend + interview drills + capstone project
+       ↓
+Java fullstack specialization: Spring Boot + React/Angular + SQL + AWS
 ```
 
 You can do **Angular and React in parallel** after ASP.NET basics, or pick one frontend for depth.
@@ -172,6 +179,7 @@ You can do **Angular and React in parallel** after ASP.NET basics, or pick one f
 | `02-angular/examples/` | TypeScript | Drop into an `ng new` standalone app |
 | `03-react/examples/` | TSX | Drop into a Vite + React + TS app |
 | `04-genai/examples/` | Python + C# | `pip install` deps noted in each file; SK samples go in ASP.NET |
+| `18-java-fullstack/examples/` | Java + TypeScript + SQL + YAML | Study Spring, React, Angular, Flyway, Docker, and AWS deployment snippets |
 
 Many Gen AI examples need API keys (`OPENAI_API_KEY`, `MISTRAL_API_KEY`, etc.). Prefer env vars — never commit secrets.
 
